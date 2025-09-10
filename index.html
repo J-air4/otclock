@@ -1,0 +1,2277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Therapy Scheduler with Productivity Calculator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #111827;
+            color: #d1d5db;
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        .card {
+            background: #1f2937;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            margin-bottom: 24px;
+            transition: box-shadow 0.3s ease;
+            border: 1px solid #374151;
+        }
+
+        .card:hover {
+            box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.4);
+        }
+
+        .card-content {
+            padding: 24px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .title {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #f9fafb;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .subtitle {
+            color: #9ca3af;
+            margin-bottom: 24px;
+            font-size: 1.1rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #eab308, #ca8a04);
+            color: #111827;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #ca8a04, #a16207);
+            transform: translateY(-2px);
+        }
+
+        .btn-gray {
+            background: #6b7280;
+            color: #f9fafb;
+        }
+
+        .btn-gray:hover {
+            background: #4b5563;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #dc2626, #991b1b);
+            color: #fecaca;
+        }
+
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #991b1b, #7f1d1d);
+            transform: translateY(-2px);
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .grid {
+            display: grid;
+            gap: 24px;
+        }
+
+        .grid-1-2 {
+            grid-template-columns: 1fr 2fr;
+        }
+
+        .grid-2 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .grid-4 {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        @media (max-width: 1024px) {
+            .grid-1-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .grid-2, .grid-4 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .input {
+            padding: 12px 16px;
+            border: 2px solid #374151;
+            border-radius: 8px;
+            font-size: 14px;
+            width: 100%;
+            transition: all 0.2s ease;
+            background: #374151;
+            color: #f9fafb;
+        }
+
+        .input:focus {
+            outline: none;
+            border-color: #eab308;
+            box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .label {
+            display: block;
+            font-weight: 600;
+            color: #f3f4f6;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .alert {
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .alert-error {
+            background: #1f2937;
+            border: 1px solid #dc2626;
+            color: #fca5a5;
+        }
+
+        .alert-success {
+            background: #1f2937;
+            border: 1px solid #16a34a;
+            color: #86efac;
+        }
+
+        .alert-warning {
+            background: #1f2937;
+            border: 1px solid #eab308;
+            color: #fde68a;
+        }
+
+        .patient-queue {
+            background: rgba(17, 24, 39, 0.5);
+            border-radius: 12px;
+            padding: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 2px dashed #4b5563;
+            transition: all 0.3s ease;
+            min-height: 100px;
+        }
+
+        .patient-queue.drag-over {
+            background: rgba(59, 130, 246, 0.1);
+            border-color: #3b82f6;
+            transform: scale(1.02);
+        }
+
+        .patient-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            cursor: grab;
+            user-select: none;
+            transition: all 0.3s ease;
+            background: #374151;
+            border: 2px solid transparent;
+            position: relative;
+        }
+
+        .patient-item:active {
+            cursor: grabbing;
+            transform: scale(1.05);
+        }
+
+        .patient-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.4);
+        }
+
+        .patient-item.dragging {
+            opacity: 0.8;
+            transform: rotate(5deg) scale(1.1);
+            z-index: 1000;
+        }
+
+        .patient-green {
+            background: rgba(34, 197, 94, 0.2);
+            border-color: #22c55e;
+            color: #86efac;
+        }
+
+        .patient-blue {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: #3b82f6;
+            color: #93c5fd;
+        }
+
+        .patient-purple {
+            background: rgba(168, 85, 247, 0.2);
+            border-color: #a855f7;
+            color: #c4b5fd;
+        }
+
+        .patient-yellow {
+            background: rgba(234, 179, 8, 0.2);
+            border-color: #eab308;
+            color: #fde68a;
+        }
+
+        .patient-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .patient-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .patient-duration {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .patient-actions {
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .patient-item:hover .patient-actions {
+            opacity: 1;
+        }
+
+        .timeline {
+            position: relative;
+            height: 800px;
+            background: linear-gradient(to bottom, rgba(17, 24, 39, 0.5), rgba(31, 41, 55, 0.5));
+            border-radius: 12px;
+            margin-left: 60px;
+            border: 3px dashed #4b5563;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 2px;
+            height: 100%;
+            background: linear-gradient(to bottom, #6b7280, #9ca3af, #6b7280);
+            transform: translateX(-50%);
+        }
+
+        .timeline.drag-over {
+            border-color: #3b82f6;
+            background: linear-gradient(to bottom, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.2));
+            transform: scale(1.01);
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
+        }
+
+        .time-marker {
+            position: absolute;
+            width: 100%;
+            border-top: 1px solid #4b5563;
+            z-index: 1;
+        }
+
+        .time-marker:nth-child(even) {
+            border-top-style: dashed;
+            opacity: 0.5;
+        }
+
+        .time-label {
+            position: absolute;
+            left: -60px;
+            top: -10px;
+            font-size: 12px;
+            color: #9ca3af;
+            font-weight: 600;
+            background: #1f2937;
+            padding: 2px 8px;
+            border-radius: 4px;
+            border: 1px solid #374151;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .timeline-item {
+            position: absolute;
+            width: 100%;
+            z-index: 2;
+        }
+
+        .appointment-item {
+            position: relative;
+            width: 88%;
+            left: 6%;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: grab;
+            user-select: none;
+            border: 2px solid;
+            transition: all 0.3s ease;
+            background: #374151;
+        }
+
+        .appointment-item:hover {
+            transform: scale(1.02);
+            box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.4);
+            z-index: 10;
+        }
+
+        .appointment-item:hover .complete-btn {
+            opacity: 1;
+        }
+
+        .appointment-item.dragging {
+            transform: rotate(2deg) scale(1.05);
+            z-index: 1000;
+            opacity: 0.9;
+        }
+
+        .break-item {
+            position: absolute;
+            width: 88%;
+            left: 6%;
+            padding: 12px;
+            border-radius: 8px;
+            background: rgba(251, 191, 36, 0.2);
+            border: 2px solid #fbbf24;
+            color: #fde68a;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .task-item {
+            position: absolute;
+            width: 88%;
+            left: 6%;
+            padding: 12px;
+            border-radius: 8px;
+            background: rgba(75, 85, 99, 0.5);
+            border: 2px solid #6b7280;
+            color: #d1d5db;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .gap-item {
+            position: absolute;
+            width: 88%;
+            left: 6%;
+            border-radius: 8px;
+            border: 3px dashed #4b5563;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #9ca3af;
+            font-size: 12px;
+            font-weight: 600;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: rgba(17, 24, 39, 0.3);
+        }
+
+        .gap-item:hover {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: #22c55e;
+            color: #86efac;
+            transform: scale(1.02);
+        }
+
+        .gap-item.valid-drop {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: #3b82f6;
+            color: #93c5fd;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .complete-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 4px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 50%;
+            opacity: 0;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            font-size: 12px;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .complete-btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+            transform: scale(1.1);
+        }
+
+        .completed {
+            opacity: 0.6;
+            filter: grayscale(0.5);
+        }
+
+        .completed .text {
+            text-decoration: line-through;
+        }
+
+        .accordion {
+            border: 2px solid #374151;
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            background: #1f2937;
+        }
+
+        .accordion:hover {
+            border-color: #4b5563;
+            box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.3);
+        }
+
+        .accordion summary {
+            padding: 20px;
+            background: linear-gradient(135deg, #1f2937, #374151);
+            cursor: pointer;
+            font-weight: 700;
+            user-select: none;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #f9fafb;
+        }
+
+        .accordion summary:hover {
+            background: linear-gradient(135deg, #374151, #4b5563);
+        }
+
+        .accordion[open] summary {
+            border-bottom: 2px solid #374151;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.2));
+        }
+
+        .accordion-content {
+            padding: 20px;
+            background: #1f2937;
+        }
+
+        .form-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: rgba(17, 24, 39, 0.5);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border: 1px solid #374151;
+            transition: all 0.3s ease;
+        }
+
+        .form-row:hover {
+            background: rgba(31, 41, 55, 0.7);
+            border-color: #4b5563;
+        }
+
+        .settings-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: rgba(17, 24, 39, 0.5);
+            border-radius: 8px;
+            border: 1px solid #374151;
+        }
+
+        .summary-card {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, rgba(31, 41, 55, 0.8), rgba(55, 65, 81, 0.8));
+            border-radius: 12px;
+            border: 1px solid #374151;
+            transition: all 0.3s ease;
+        }
+
+        .summary-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.4);
+            border-color: #4b5563;
+        }
+
+        .summary-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #f9fafb, #d1d5db);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .summary-label {
+            font-size: 14px;
+            color: #9ca3af;
+            font-weight: 600;
+        }
+
+        .productivity-calculator {
+            background: rgba(17, 24, 39, 0.7);
+            border: 2px solid #374151;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .productivity-calculator:hover {
+            border-color: #4b5563;
+            box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        .insights-box {
+            padding: 20px;
+            background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(59, 130, 246, 0.1));
+            border: 2px solid #4338ca;
+            border-radius: 12px;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .insights-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px -5px rgba(67, 56, 202, 0.3);
+        }
+
+        .insights-title {
+            font-weight: 700;
+            color: #a5b4fc;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 16px;
+        }
+
+        .insights-text {
+            font-size: 14px;
+            color: #c7d2fe;
+            margin-bottom: 8px;
+            line-height: 1.6;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #374151;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #eab308, #16a34a);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .projection-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(55, 65, 81, 0.5);
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .projection-item:hover {
+            background: rgba(75, 85, 99, 0.7);
+        }
+
+        .loading {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .loading::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            animation: loading 1.5s infinite;
+        }
+
+        @keyframes loading {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .confirmation-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .confirmation-content {
+            background: #1f2937;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+            width: 90%;
+            animation: slideUp 0.3s ease;
+            border: 1px solid #374151;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .time-input-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .time-adjust-buttons {
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #4b5563;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .time-adjust-btn {
+            padding: 4px 8px;
+            background: #374151;
+            border: none;
+            color: #d1d5db;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .time-adjust-btn:hover {
+            background: #4b5563;
+        }
+
+        .time-adjust-btn:first-child {
+            border-bottom: 1px solid #4b5563;
+        }
+
+        .text-green { color: #10b981; }
+        .text-red { color: #ef4444; }
+        .text-blue { color: #3b82f6; }
+        .text-gray { color: #9ca3af; }
+        .text-purple { color: #a855f7; }
+        .text-yellow { color: #eab308; }
+
+        .space-y-4 > * + * { margin-top: 16px; }
+        .space-y-2 > * + * { margin-top: 8px; }
+        .mb-4 { margin-bottom: 16px; }
+        .mt-4 { margin-top: 16px; }
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .gap-2 { gap: 8px; }
+        .gap-3 { gap: 12px; }
+        .w-full { width: 100%; }
+        .w-20 { width: 80px; }
+        .hidden { display: none !important; }
+
+        @media print {
+            body * { visibility: hidden; }
+            .printable-area, .printable-area * { visibility: visible; }
+            .printable-area { position: absolute; left: 0; top: 0; width: 100%; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container printable-area">
+        <div class="no-print">
+            <div class="card">
+                <div class="card-content">
+                    <div class="header">
+                        <div>
+                            <h1 class="title">
+                                📅 Enhanced Therapy Scheduler
+                            </h1>
+                            <p class="subtitle">Advanced productivity tracking with optimal clock-out time calculations.</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="saveSettings()" class="btn btn-primary" id="saveBtn">
+                                💾 Save Settings
+                            </button>
+                            <button onclick="window.print()" class="btn btn-gray">
+                                🖨️ Print Schedule
+                            </button>
+                        </div>
+                    </div>
+                    <div id="alertContainer" class="hidden"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-1-2">
+            <!-- Left Column: Controls -->
+            <div class="space-y-4 no-print">
+                <!-- Patient Queue -->
+                <div class="card">
+                    <div class="card-content">
+                        <h2 class="text-xl font-semibold mb-4 flex items-center gap-3">
+                            🕐 Patient Queue (<span id="queueCount" class="text-blue">0</span>)
+                        </h2>
+                        <div class="flex gap-2 mb-4">
+                            <input 
+                                type="text" 
+                                id="newPatientName" 
+                                placeholder="Patient initials (e.g. J.D.)" 
+                                class="input"
+                                maxlength="10"
+                                onkeydown="if(event.key==='Enter') document.getElementById('newPatientDuration').focus()"
+                            >
+                            <input 
+                                type="number" 
+                                id="newPatientDuration" 
+                                placeholder="Duration (min)" 
+                                class="input"
+                                min="15"
+                                max="120"
+                                step="5"
+                                onkeydown="if(event.key==='Enter') addPatient()"
+                            >
+                            <button onclick="addPatient()" class="btn btn-primary" id="addPatientBtn">
+                                ➕ Add
+                            </button>
+                        </div>
+                        <div class="flex gap-2 mb-4">
+                            <button onclick="addQuickPatient(25)" class="btn btn-gray btn-small w-full">+25min</button>
+                            <button onclick="addQuickPatient(30)" class="btn btn-gray btn-small w-full">+30min</button>
+                            <button onclick="addQuickPatient(38)" class="btn btn-gray btn-small w-full">+38min</button>
+                        </div>
+                        <div id="patientQueue" class="patient-queue" 
+                             ondragover="handleQueueDragOver(event)"
+                             ondrop="handleQueueDrop(event)"></div>
+                        <button onclick="autoSchedule()" class="btn btn-primary w-full mt-4" id="autoScheduleBtn">
+                            ⚡ Auto-Schedule All Patients
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Work Day & Breaks -->
+                <details class="accordion" open>
+                    <summary>
+                        🕐 Work Day & Breaks
+                    </summary>
+                    <div class="accordion-content space-y-4">
+                        <!-- Work Hours -->
+                        <div>
+                            <label class="label">Work Start Time</label>
+                            <div class="form-row">
+                                <div class="time-input-container">
+                                    <input type="time" id="startTime" value="08:30" class="input" onchange="updateWorkDay()">
+                                    <div class="time-adjust-buttons">
+                                        <button class="time-adjust-btn" onclick="adjustStartTime(15)" title="Add 15 minutes">+</button>
+                                        <button class="time-adjust-btn" onclick="adjustStartTime(-15)" title="Subtract 15 minutes">-</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Breaks -->
+                        <div>
+                            <label class="label">Scheduled Breaks</label>
+                            <div id="breaksContainer" class="space-y-2"></div>
+                            <button onclick="addBreak()" class="btn btn-gray w-full mt-2">
+                                ☕ Add Break
+                            </button>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Other Tasks & Settings -->
+                <details class="accordion">
+                    <summary>
+                        ⚙️ Tasks & Settings
+                    </summary>
+                    <div class="accordion-content space-y-4">
+                        <!-- Other Tasks -->
+                        <div>
+                            <label class="label">Other Scheduled Tasks</label>
+                            <div id="tasksContainer" class="space-y-2"></div>
+                            <button onclick="addTask()" class="btn btn-gray w-full mt-2">
+                                ➕ Add Task
+                            </button>
+                        </div>
+
+                        <!-- Settings -->
+                        <div>
+                            <label class="label">Scheduling Settings</label>
+                            <div class="space-y-2">
+                                <div class="settings-row">
+                                    <label>Setup Time (minutes)</label>
+                                    <input type="number" id="setupTime" value="5" class="input w-20" min="0" max="30" onchange="updateSettings()">
+                                </div>
+                                <div class="settings-row">
+                                    <label>Transition Time (minutes)</label>
+                                    <input type="number" id="transitionTime" value="2" class="input w-20" min="0" max="15" onchange="updateSettings()">
+                                </div>
+                                <div class="settings-row">
+                                    <label>Productivity Target (%)</label>
+                                    <input type="number" id="productivityTarget" value="85" class="input w-20" min="50" max="100" onchange="updateSettings()">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+            </div>
+
+            <!-- Right Column: Timeline & Summary -->
+            <div class="space-y-4">
+                <!-- Productivity Clock-Out Calculator -->
+                <div id="clockOutCard" class="card">
+                    <div class="card-content">
+                        <h2 class="text-xl font-bold mb-4 flex items-center gap-3">
+                            ⏰ Productivity Clock-Out Calculator
+                        </h2>
+                        <div class="grid grid-2 mb-4">
+                            <div class="summary-card">
+                                <div id="clockOutTime" class="summary-value text-green">--:--</div>
+                                <div class="summary-label">Target Clock-Out</div>
+                            </div>
+                            <div class="summary-card">
+                                <div id="currentProgress" class="summary-value text-blue">--%</div>
+                                <div class="summary-label">Daily Progress</div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm text-gray">Progress Toward Target</span>
+                                <span id="progressPercentage" class="text-sm text-gray">0%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <div id="productivityProjections" class="space-y-2">
+                            <h4 class="font-semibold text-yellow mb-2">Clock-Out Scenarios:</h4>
+                        </div>
+                        
+                        <details class="productivity-calculator mt-4">
+                            <summary class="font-semibold text-gray cursor-pointer flex items-center gap-2">
+                                📊 What-If Calculator
+                            </summary>
+                            <div class="mt-4 space-y-4">
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium text-gray">If I clock out at...</label>
+                                    <div class="time-input-container">
+                                        <input type="time" id="whatIfTime" value="17:00" class="input" onchange="calculateWhatIf()">
+                                        <div class="time-adjust-buttons">
+                                            <button class="time-adjust-btn" onclick="adjustWhatIfTime(30)">+</button>
+                                            <button class="time-adjust-btn" onclick="adjustWhatIfTime(-30)">-</button>
+                                        </div>
+                                    </div>
+                                    <p class="text-sm text-gray mt-2">
+                                        Your productivity would be: <strong id="whatIfProductivity" class="text-lg text-yellow">0.0%</strong>
+                                    </p>
+                                </div>
+                                <hr style="border-color: #374151;"/>
+                                <div class="space-y-2">
+                                     <label class="block text-sm font-medium text-gray">If I add extra billable minutes...</label>
+                                     <div class="flex items-center gap-2">
+                                        <input type="number" id="extraMinutes" placeholder="e.g. 30" class="input" onchange="calculateWhatIf()">
+                                        <span class="text-sm text-gray">minutes</span>
+                                     </div>
+                                     <p class="text-sm text-gray">
+                                         New productivity: <strong id="whatIfExtraProductivity" class="text-lg text-yellow">0.0%</strong>
+                                     </p>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+
+                <!-- Summary -->
+                <div id="summaryCard" class="card">
+                    <div class="card-content">
+                        <h2 class="text-2xl font-bold mb-4 flex items-center gap-3">
+                            📊 Daily Summary
+                        </h2>
+                        <div class="grid grid-4 mb-4" id="summaryGrid"></div>
+                        <div id="insightsContainer"></div>
+                    </div>
+                </div>
+
+                <!-- Timeline -->
+                <div class="card">
+                    <div class="card-content">
+                        <h2 class="text-xl font-semibold mb-4 flex items-center gap-3">
+                            📆 Visual Schedule
+                            <span class="text-sm text-gray font-normal ml-auto">Drag patients to open time slots</span>
+                        </h2>
+                        <div 
+                            id="timeline" 
+                            class="timeline"
+                            ondragover="handleTimelineDragOver(event)"
+                            ondrop="handleTimelineDrop(event)"
+                            ondragleave="handleTimelineDragLeave(event)"
+                        >
+                            <!-- Time markers and schedule items will be generated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmationModal" class="confirmation-modal hidden">
+        <div class="confirmation-content">
+            <h3 class="text-lg font-bold mb-4 text-yellow" id="confirmTitle">Confirm Action</h3>
+            <p class="text-gray mb-6" id="confirmMessage">Are you sure you want to proceed?</p>
+            <div class="flex gap-3 justify-end">
+                <button onclick="hideConfirmation()" class="btn btn-gray">Cancel</button>
+                <button onclick="confirmAction()" class="btn btn-danger" id="confirmBtn">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Enhanced global state with productivity tracking
+        let state = {
+            settings: {
+                workDay: { startTime: '08:30' },
+                breaks: [{ id: 1, start: '12:00', end: '12:30', label: 'Lunch Break' }],
+                otherTasks: [{ id: 1, start: '14:00', end: '14:30', label: 'Documentation', type: 'non-billable' }],
+                transitionTime: 2,
+                setupTime: 5,
+                productivityTarget: 85
+            },
+            patientQueue: [
+                { id: 'p1', name: 'J.D.', duration: 45 }, 
+                { id: 'p2', name: 'M.S.', duration: 30 }, 
+                { id: 'p3', name: 'A.B.', duration: 60 },
+                { id: 'p4', name: 'R.K.', duration: 45 }
+            ],
+            appointments: [],
+            schedule: null,
+            draggedPatient: null,
+            confirmCallback: null
+        };
+
+        // Enhanced utility functions
+        function timeStringToMinutes(time24h) {
+            if (!time24h) return 0;
+            const [hours, minutes] = time24h.split(':').map(Number);
+            if (isNaN(hours) || isNaN(minutes)) return 0;
+            return hours * 60 + minutes;
+        }
+
+        function minutesToTime(totalMinutes) {
+            if (isNaN(totalMinutes) || totalMinutes < 0) return 'Invalid';
+            
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = Math.round(totalMinutes % 60);
+            const period = hours >= 12 ? 'PM' : 'AM';
+            let displayHours = hours % 12;
+            if (displayHours === 0) displayHours = 12;
+            
+            return `${displayHours}:${minutes.toString().padStart(2, '0')}${period}`;
+        }
+
+        function timeToMinutes24h(timeStr) {
+            const [time, period] = timeStr.includes('M') ? [timeStr.slice(0, -2), timeStr.slice(-2)] : [timeStr, null];
+            if (!period) return timeStringToMinutes(timeStr);
+            
+            const [hours, minutes] = time.split(':').map(Number);
+            let totalHours = hours;
+            if (period === 'PM' && hours !== 12) totalHours += 12;
+            else if (period === 'AM' && hours === 12) totalHours = 0;
+            
+            return totalHours * 60 + minutes;
+        }
+
+        function getPatientColor(duration) {
+            if (duration <= 25) return 'patient-yellow';
+            if (duration <= 35) return 'patient-blue';
+            if (duration <= 45) return 'patient-green';
+            return 'patient-purple';
+        }
+
+        function generatePatientId() {
+            return 'p' + Date.now() + Math.random().toString(36).substr(2, 5);
+        }
+
+        // Enhanced alert system
+        function showAlert(message, type = 'error', duration = 4000) {
+            const container = document.getElementById('alertContainer');
+            const alertId = 'alert-' + Date.now();
+            
+            const iconMap = {
+                error: '⚠️',
+                success: '✅',
+                warning: '⚠️'
+            };
+            
+            const alertDiv = document.createElement('div');
+            alertDiv.id = alertId;
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.innerHTML = `
+                <span style="font-size: 20px;">${iconMap[type]}</span>
+                <div>
+                    <div style="font-weight: 600;">${type.charAt(0).toUpperCase() + type.slice(1)}</div>
+                    <div>${message}</div>
+                </div>
+                <button onclick="hideAlert('${alertId}')" style="background: none; border: none; cursor: pointer; margin-left: auto; font-size: 16px; color: inherit;">
+                    ✕
+                </button>
+            `;
+            
+            container.appendChild(alertDiv);
+            container.classList.remove('hidden');
+            
+            if (duration > 0) {
+                setTimeout(() => hideAlert(alertId), duration);
+            }
+        }
+
+        function hideAlert(alertId) {
+            const alert = document.getElementById(alertId);
+            if (alert) {
+                alert.style.animation = 'slideOut 0.3s ease forwards';
+                setTimeout(() => {
+                    alert.remove();
+                    const container = document.getElementById('alertContainer');
+                    if (container.children.length === 0) {
+                        container.classList.add('hidden');
+                    }
+                }, 300);
+            }
+        }
+
+        // Enhanced patient queue management
+        function addPatient() {
+            const nameInput = document.getElementById('newPatientName');
+            const durationInput = document.getElementById('newPatientDuration');
+            
+            const name = nameInput.value.trim();
+            const duration = parseInt(durationInput.value);
+            
+            if (!name) {
+                showAlert('Please enter patient initials or identifier', 'warning');
+                nameInput.focus();
+                return;
+            }
+            
+            if (!duration || duration < 15 || duration > 120) {
+                showAlert('Duration must be between 15 and 120 minutes', 'warning');
+                durationInput.focus();
+                return;
+            }
+            
+            const existingPatient = state.patientQueue.find(p => 
+                p.name.toLowerCase() === name.toLowerCase()
+            );
+            
+            if (existingPatient) {
+                showAlert(`Patient "${name}" is already in the queue`, 'warning');
+                return;
+            }
+            
+            const newPatient = {
+                id: generatePatientId(),
+                name: name,
+                duration: duration
+            };
+            
+            state.patientQueue.push(newPatient);
+            
+            nameInput.value = '';
+            durationInput.value = '';
+            nameInput.focus();
+            
+            renderPatientQueue();
+            calculateSchedule();
+            
+            showAlert(`Patient "${name}" (${duration} min) added to queue`, 'success', 2000);
+        }
+
+        function addQuickPatient(duration) {
+            const patientNumber = state.patientQueue.length + state.appointments.length + 1;
+            const newPatient = {
+                id: generatePatientId(),
+                name: `P${patientNumber}`,
+                duration: duration
+            };
+            
+            state.patientQueue.push(newPatient);
+            renderPatientQueue();
+            calculateSchedule();
+            showAlert(`Patient "${newPatient.name}" (${duration} min) added to queue`, 'success', 2000);
+        }
+
+        function removePatient(id) {
+            const patient = state.patientQueue.find(p => p.id === id) || 
+                           state.appointments.find(a => a.id === id);
+            
+            if (patient) {
+                showConfirmation(
+                    'Remove Patient',
+                    `Are you sure you want to remove patient "${patient.name}" from the schedule?`,
+                    () => {
+                        state.patientQueue = state.patientQueue.filter(p => p.id !== id);
+                        state.appointments = state.appointments.filter(a => a.id !== id);
+                        renderPatientQueue();
+                        renderTimeline();
+                        calculateSchedule();
+                        showAlert(`Patient "${patient.name}" removed`, 'success', 2000);
+                    }
+                );
+            }
+        }
+
+        function renderPatientQueue() {
+            const container = document.getElementById('patientQueue');
+            const count = document.getElementById('queueCount');
+            count.textContent = state.patientQueue.length;
+
+            if (state.patientQueue.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #64748b;">
+                        <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;">📥</div>
+                        <p>No patients in queue</p>
+                        <p style="font-size: 12px;">Add patients using the form above</p>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = state.patientQueue.map(p => `
+                    <div 
+                        class="patient-item ${getPatientColor(p.duration)}" 
+                        draggable="true"
+                        data-patient-id="${p.id}"
+                        ondragstart="handlePatientDragStart(event, '${p.id}')"
+                        ondragend="handlePatientDragEnd(event)"
+                    >
+                        <div class="patient-info">
+                            <div class="patient-name">${p.name}</div>
+                            <div class="patient-duration">${p.duration} minutes</div>
+                        </div>
+                        <div class="patient-actions">
+                            <button onclick="removePatient('${p.id}')" class="btn-small btn-danger" title="Remove patient">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Settings management
+        function adjustStartTime(minutes) {
+            const startTimeInput = document.getElementById('startTime');
+            const currentMinutes = timeStringToMinutes(startTimeInput.value);
+            const newMinutes = Math.max(0, Math.min(1440, currentMinutes + minutes));
+            const hours = Math.floor(newMinutes / 60);
+            const mins = newMinutes % 60;
+            startTimeInput.value = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+            updateWorkDay();
+        }
+
+        function adjustWhatIfTime(minutes) {
+            const whatIfInput = document.getElementById('whatIfTime');
+            const currentMinutes = timeStringToMinutes(whatIfInput.value);
+            const newMinutes = Math.max(0, Math.min(1440, currentMinutes + minutes));
+            const hours = Math.floor(newMinutes / 60);
+            const mins = newMinutes % 60;
+            whatIfInput.value = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+            calculateWhatIf();
+        }
+
+        function updateWorkDay() {
+            const startTime = document.getElementById('startTime').value;
+            if (!startTime) return;
+            
+            state.settings.workDay = { startTime };
+            calculateSchedule();
+        }
+
+        function updateSettings() {
+            const setupTime = parseInt(document.getElementById('setupTime').value) || 0;
+            const transitionTime = parseInt(document.getElementById('transitionTime').value) || 0;
+            const productivityTarget = parseInt(document.getElementById('productivityTarget').value) || 85;
+            
+            state.settings.setupTime = setupTime;
+            state.settings.transitionTime = transitionTime;
+            state.settings.productivityTarget = productivityTarget;
+            calculateSchedule();
+        }
+
+        function addBreak() {
+            const newBreak = {
+                id: Date.now(),
+                start: '12:00',
+                end: '12:30',
+                label: 'Break'
+            };
+            state.settings.breaks.push(newBreak);
+            renderBreaks();
+            calculateSchedule();
+        }
+
+        function removeBreak(id) {
+            const breakItem = state.settings.breaks.find(b => b.id === id);
+            if (breakItem) {
+                showConfirmation(
+                    'Remove Break',
+                    `Remove "${breakItem.label}" break?`,
+                    () => {
+                        state.settings.breaks = state.settings.breaks.filter(b => b.id !== id);
+                        renderBreaks();
+                        calculateSchedule();
+                        showAlert('Break removed', 'success', 2000);
+                    }
+                );
+            }
+        }
+
+        function updateBreak(id, field, value) {
+            const breakItem = state.settings.breaks.find(b => b.id === id);
+            if (breakItem) {
+                breakItem[field] = value;
+                calculateSchedule();
+            }
+        }
+
+        function renderBreaks() {
+            const container = document.getElementById('breaksContainer');
+            container.innerHTML = state.settings.breaks.map(br => `
+                <div class="form-row">
+                    <input 
+                        type="text" 
+                        value="${br.label}" 
+                        class="input"
+                        onchange="updateBreak(${br.id}, 'label', this.value)"
+                        placeholder="Break name"
+                        maxlength="20"
+                    >
+                    <div class="flex gap-2">
+                        <div class="time-input-container">
+                            <input 
+                                type="time" 
+                                value="${br.start}" 
+                                class="input"
+                                onchange="updateBreak(${br.id}, 'start', this.value)"
+                            >
+                        </div>
+                        <span style="color: #9ca3af;">to</span>
+                        <div class="time-input-container">
+                            <input 
+                                type="time" 
+                                value="${br.end}" 
+                                class="input"
+                                onchange="updateBreak(${br.id}, 'end', this.value)"
+                            >
+                        </div>
+                    </div>
+                    <button onclick="removeBreak(${br.id})" class="btn-small btn-danger">
+                        🗑️
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function addTask() {
+            const newTask = {
+                id: Date.now(),
+                start: '15:00',
+                end: '15:30',
+                label: 'Task',
+                type: 'non-billable'
+            };
+            state.settings.otherTasks.push(newTask);
+            renderTasks();
+            calculateSchedule();
+        }
+
+        function removeTask(id) {
+            const task = state.settings.otherTasks.find(t => t.id === id);
+            if (task) {
+                showConfirmation(
+                    'Remove Task',
+                    `Remove "${task.label}" task?`,
+                    () => {
+                        state.settings.otherTasks = state.settings.otherTasks.filter(t => t.id !== id);
+                        renderTasks();
+                        calculateSchedule();
+                        showAlert('Task removed', 'success', 2000);
+                    }
+                );
+            }
+        }
+
+        function updateTask(id, field, value) {
+            const task = state.settings.otherTasks.find(t => t.id === id);
+            if (task) {
+                task[field] = value;
+                calculateSchedule();
+            }
+        }
+
+        function renderTasks() {
+            const container = document.getElementById('tasksContainer');
+            container.innerHTML = state.settings.otherTasks.map(task => `
+                <div style="padding: 16px; background: rgba(17, 24, 39, 0.5); border-radius: 8px; border: 1px solid #374151; margin-bottom: 8px;">
+                    <div class="flex gap-2 items-center mb-2">
+                        <input 
+                            type="text" 
+                            value="${task.label}" 
+                            class="input"
+                            onchange="updateTask(${task.id}, 'label', this.value)"
+                            placeholder="Task name"
+                            maxlength="30"
+                        >
+                        <button onclick="removeTask(${task.id})" class="btn-small btn-danger">
+                            🗑️
+                        </button>
+                    </div>
+                    <div class="flex gap-2 items-center mb-2">
+                        <div class="time-input-container">
+                            <input 
+                                type="time" 
+                                value="${task.start}" 
+                                class="input"
+                                onchange="updateTask(${task.id}, 'start', this.value)"
+                            >
+                        </div>
+                        <span style="color: #9ca3af;">to</span>
+                        <div class="time-input-container">
+                            <input 
+                                type="time" 
+                                value="${task.end}" 
+                                class="input"
+                                onchange="updateTask(${task.id}, 'end', this.value)"
+                            >
+                        </div>
+                    </div>
+                    <select onchange="updateTask(${task.id}, 'type', this.value)" class="input">
+                        <option value="non-billable" ${task.type === 'non-billable' ? 'selected' : ''}>Non-Billable Time</option>
+                        <option value="billable" ${task.type === 'billable' ? 'selected' : ''}>Billable Time</option>
+                    </select>
+                </div>
+            `).join('');
+        }
+
+        // Productivity calculations
+        function calculateClockOutTime() {
+            if (!state.schedule) return null;
+
+            const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
+            
+            const completedBillableTime = state.appointments
+                .filter(a => a.completed)
+                .reduce((sum, apt) => sum + apt.duration, 0);
+
+            const remainingBillableTime = state.appointments
+                .filter(a => !a.completed)
+                .reduce((sum, apt) => sum + apt.duration, 0);
+
+            const billableTaskTime = state.settings.otherTasks
+                .filter(t => t.type === 'billable')
+                .reduce((sum, t) => sum + (timeStringToMinutes(t.end) - timeStringToMinutes(t.start)), 0);
+
+            const nonBillableTime = state.settings.breaks
+                .reduce((sum, br) => sum + (timeStringToMinutes(br.end) - timeStringToMinutes(br.start)), 0) +
+                state.settings.otherTasks
+                    .filter(t => t.type === 'non-billable')
+                    .reduce((sum, t) => sum + (timeStringToMinutes(t.end) - timeStringToMinutes(t.start)), 0);
+
+            const targetPercentage = state.settings.productivityTarget / 100;
+            const totalBillableTime = completedBillableTime + remainingBillableTime + billableTaskTime;
+            
+            let clockOutTime = null;
+            let currentProgress = 0;
+            
+            if (totalBillableTime > 0) {
+                currentProgress = completedBillableTime / totalBillableTime * 100;
+                
+                const minWorkTimeNeeded = (totalBillableTime / targetPercentage) + nonBillableTime + state.settings.setupTime;
+                clockOutTime = dayStartMins + minWorkTimeNeeded;
+            }
+
+            return {
+                clockOutTime: clockOutTime ? minutesToTime(clockOutTime) : null,
+                currentProgress: Math.round(currentProgress * 10) / 10,
+                completedBillableTime,
+                remainingBillableTime: remainingBillableTime + billableTaskTime,
+                totalBillableTime,
+                nonBillableTime
+            };
+        }
+
+        function calculateProductivityProjections() {
+            const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
+            const clockOutData = calculateClockOutTime();
+            if (!clockOutData) return [];
+            
+            const projections = [];
+            const clockOutMins = timeToMinutes24h(clockOutData.clockOutTime || '17:00PM');
+            const timeOffsets = [-60, -30, 0, 30];
+            
+            timeOffsets.forEach(offset => {
+                const projectedClockOut = clockOutMins + offset;
+                if (projectedClockOut > dayStartMins) {
+                    const totalWorkTime = projectedClockOut - dayStartMins;
+                    const productiveTime = totalWorkTime - clockOutData.nonBillableTime;
+                    
+                    let billableTimeAtClockOut = clockOutData.completedBillableTime;
+                    
+                    state.appointments
+                        .filter(a => !a.completed)
+                        .forEach(apt => {
+                            const aptEndTime = timeToMinutes24h(`${apt.end}${apt.endPeriod}`);
+                            if (aptEndTime <= projectedClockOut) {
+                                billableTimeAtClockOut += apt.duration;
+                            }
+                        });
+
+                    const productivity = productiveTime > 0 ? (billableTimeAtClockOut / productiveTime) * 100 : 0;
+                    
+                    projections.push({
+                        clockOutTime: minutesToTime(projectedClockOut),
+                        productivity: Math.round(productivity * 10) / 10,
+                        meetsTarget: productivity >= state.settings.productivityTarget,
+                        timeLabel: offset === -60 ? '1hr early' : 
+                                  offset === -30 ? '30min early' :
+                                  offset === 0 ? 'target time' : '30min overtime'
+                    });
+                }
+            });
+
+            return projections;
+        }
+
+        function renderClockOutCalculator() {
+            const clockOutData = calculateClockOutTime();
+            
+            if (!clockOutData || clockOutData.totalBillableTime === 0) {
+                document.getElementById('clockOutTime').textContent = '--:--';
+                document.getElementById('currentProgress').textContent = '--%';
+                document.getElementById('progressPercentage').textContent = '0%';
+                document.getElementById('progressFill').style.width = '0%';
+                document.getElementById('productivityProjections').innerHTML = '<p class="text-sm text-gray">Add appointments to calculate optimal clock-out time</p>';
+                return;
+            }
+
+            document.getElementById('clockOutTime').textContent = clockOutData.clockOutTime || '--:--';
+            document.getElementById('currentProgress').textContent = clockOutData.currentProgress + '%';
+            document.getElementById('progressPercentage').textContent = clockOutData.currentProgress + '%';
+            document.getElementById('progressFill').style.width = Math.min(clockOutData.currentProgress, 100) + '%';
+
+            const projections = calculateProductivityProjections();
+            const projectionsContainer = document.getElementById('productivityProjections');
+            projectionsContainer.innerHTML = `
+                <h4 class="font-semibold text-yellow mb-2">Clock-Out Scenarios:</h4>
+                ${projections.map(proj => `
+                    <div class="projection-item">
+                        <span>${proj.timeLabel}: ${proj.clockOutTime}</span>
+                        <span class="${proj.meetsTarget ? 'text-green' : 'text-red'}" style="font-weight: 600;">
+                            ${proj.productivity}% ${proj.meetsTarget ? '✅' : '❌'}
+                        </span>
+                    </div>
+                `).join('')}
+                <div style="font-size: 12px; color: #9ca3af; text-align: center; margin-top: 12px;">
+                    Target: ${state.settings.productivityTarget}% • 
+                    Completed: ${clockOutData.completedBillableTime}min • 
+                    Remaining: ${clockOutData.remainingBillableTime}min
+                </div>
+            `;
+        }
+
+        function calculateWhatIf() {
+            const whatIfTime = document.getElementById('whatIfTime').value;
+            const extraMinutes = parseInt(document.getElementById('extraMinutes').value) || 0;
+            
+            const clockOutData = calculateClockOutTime();
+            if (!clockOutData || clockOutData.totalBillableTime === 0) {
+                document.getElementById('whatIfProductivity').textContent = '0.0%';
+                document.getElementById('whatIfExtraProductivity').textContent = '0.0%';
+                return;
+            }
+            
+            const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
+            const whatIfEndMins = timeStringToMinutes(whatIfTime);
+            const totalWorkTime = whatIfEndMins - dayStartMins;
+            const productiveTime = Math.max(0, totalWorkTime - clockOutData.nonBillableTime);
+            
+            const productivity = productiveTime > 0 ? (clockOutData.totalBillableTime / productiveTime * 100) : 0;
+            const productivityWithExtra = productiveTime > 0 ? ((clockOutData.totalBillableTime + extraMinutes) / productiveTime * 100) : 0;
+            
+            document.getElementById('whatIfProductivity').textContent = productivity.toFixed(1) + '%';
+            document.getElementById('whatIfExtraProductivity').textContent = productivityWithExtra.toFixed(1) + '%';
+        }
+
+        // Drag and drop with better visual feedback
+        function handlePatientDragStart(event, patientId) {
+            const patient = state.patientQueue.find(p => p.id === patientId) || 
+                            state.appointments.find(a => a.id === patientId);
+            
+            if (patient) {
+                state.draggedPatient = patient;
+                event.target.classList.add('dragging');
+                
+                setTimeout(() => {
+                    document.querySelectorAll('.gap-item').forEach(gap => {
+                        const duration = parseInt(gap.textContent.match(/\d+/)?.[0] || '0');
+                        if (duration >= patient.duration) {
+                            gap.classList.add('valid-drop');
+                        }
+                    });
+                }, 0);
+            }
+        }
+
+        function handlePatientDragEnd(event) {
+            event.target.classList.remove('dragging');
+            
+            document.querySelectorAll('.gap-item').forEach(gap => {
+                gap.classList.remove('valid-drop');
+            });
+        }
+
+        function handleQueueDragOver(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            event.currentTarget.classList.add('drag-over');
+        }
+
+        function handleQueueDrop(event) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('drag-over');
+            
+            const patient = state.draggedPatient;
+            if (patient) {
+                state.appointments = state.appointments.filter(a => a.id !== patient.id);
+                if (!state.patientQueue.find(p => p.id === patient.id)) {
+                    state.patientQueue.push({ id: patient.id, name: patient.name, duration: patient.duration });
+                }
+                renderPatientQueue();
+                renderTimeline();
+                calculateSchedule();
+                showAlert(`${patient.name} moved back to queue`, 'success', 2000);
+            }
+            state.draggedPatient = null;
+        }
+
+        function handleTimelineDragOver(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            document.getElementById('timeline').classList.add('drag-over');
+        }
+
+        function handleTimelineDragLeave(event) {
+            if (!event.currentTarget.contains(event.relatedTarget)) {
+                document.getElementById('timeline').classList.remove('drag-over');
+            }
+        }
+
+        function handleTimelineDrop(event) {
+            event.preventDefault();
+            document.getElementById('timeline').classList.remove('drag-over');
+            
+            const patient = state.draggedPatient;
+            if (patient) {
+                state.appointments = state.appointments.filter(a => a.id !== patient.id);
+                if (!state.patientQueue.find(p => p.id === patient.id)) {
+                    state.patientQueue.push({ id: patient.id, name: patient.name, duration: patient.duration });
+                }
+                renderPatientQueue();
+                renderTimeline();
+                calculateSchedule();
+            }
+            state.draggedPatient = null;
+        }
+
+        function handleGapDrop(event, gap) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const patient = state.draggedPatient;
+            if (patient && gap.duration >= patient.duration) {
+                state.patientQueue = state.patientQueue.filter(p => p.id !== patient.id);
+                state.appointments = state.appointments.filter(a => a.id !== patient.id);
+
+                const startTime = minutesToTime(gap.start);
+                const endTime = minutesToTime(gap.start + patient.duration);
+                
+                state.appointments.push({
+                    id: patient.id,
+                    name: patient.name,
+                    duration: patient.duration,
+                    start: startTime.slice(0, -2),
+                    startPeriod: startTime.slice(-2),
+                    end: endTime.slice(0, -2),
+                    endPeriod: endTime.slice(-2),
+                    completed: false
+                });
+
+                state.appointments.sort((a, b) => 
+                    timeToMinutes24h(a.start + a.startPeriod) - timeToMinutes24h(b.start + b.startPeriod)
+                );
+
+                renderPatientQueue();
+                renderTimeline();
+                calculateSchedule();
+                showAlert(`${patient.name} scheduled at ${startTime}`, 'success', 2000);
+            } else if (patient) {
+                showAlert(`${patient.name} (${patient.duration} min) doesn't fit in this ${gap.duration} min slot`, 'warning');
+            }
+            state.draggedPatient = null;
+        }
+
+        // Enhanced auto-scheduling
+        function autoSchedule() {
+            if (state.patientQueue.length === 0) {
+                showAlert('No patients in queue to schedule', 'warning');
+                return;
+            }
+            
+            const button = document.getElementById('autoScheduleBtn');
+            button.disabled = true;
+            button.innerHTML = '<div class="loading">Auto-scheduling...</div>';
+            
+            setTimeout(() => {
+                try {
+                    const allPatients = [...state.patientQueue, ...state.appointments.map(a => ({ 
+                        id: a.id, name: a.name, duration: a.duration 
+                    }))];
+                    
+                    allPatients.sort((a, b) => b.duration - a.duration);
+                    
+                    state.patientQueue = [];
+                    state.appointments = [];
+
+                    const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
+
+                    const unavailableBlocks = [
+                        ...state.settings.breaks.map(b => ({ 
+                            start: timeStringToMinutes(b.start), 
+                            end: timeStringToMinutes(b.end) 
+                        })),
+                        ...state.settings.otherTasks.map(t => ({ 
+                            start: timeStringToMinutes(t.start), 
+                            end: timeStringToMinutes(t.end) 
+                        }))
+                    ].sort((a, b) => a.start - b.start);
+
+                    let currentTime = dayStartMins + state.settings.setupTime;
+                    let scheduledCount = 0;
+
+                    allPatients.forEach(patient => {
+                        let placed = false;
+                        let attempts = 0;
+                        const maxAttempts = 50;
+                        
+                        while (!placed && attempts < maxAttempts) {
+                            let availableSlot = true;
+                            const potentialEndTime = currentTime + patient.duration;
+
+                            if (potentialEndTime > dayStartMins + 12 * 60) { // 12 hour limit
+                                state.patientQueue.push(patient);
+                                break;
+                            }
+
+                            for (const block of unavailableBlocks) {
+                                if ((currentTime >= block.start && currentTime < block.end) || 
+                                    (potentialEndTime > block.start && potentialEndTime <= block.end) || 
+                                    (currentTime < block.start && potentialEndTime > block.end)) {
+                                    currentTime = block.end;
+                                    availableSlot = false;
+                                    break;
+                                }
+                            }
+
+                            if (availableSlot) {
+                                const startTime = minutesToTime(currentTime);
+                                const endTime = minutesToTime(potentialEndTime);
+                                
+                                state.appointments.push({
+                                    id: patient.id,
+                                    name: patient.name,
+                                    duration: patient.duration,
+                                    start: startTime.slice(0, -2),
+                                    startPeriod: startTime.slice(-2),
+                                    end: endTime.slice(0, -2),
+                                    endPeriod: endTime.slice(-2),
+                                    completed: false
+                                });
+                                
+                                currentTime += patient.duration + state.settings.transitionTime;
+                                scheduledCount++;
+                                placed = true;
+                            }
+                            attempts++;
+                        }
+                    });
+
+                    renderPatientQueue();
+                    renderTimeline();
+                    calculateSchedule();
+                    
+                    showAlert(`Auto-scheduling complete! ${scheduledCount} patients scheduled, ${state.patientQueue.length} remain in queue`, 'success', 3000);
+                } catch (error) {
+                    console.error('Auto-scheduling error:', error);
+                    showAlert('Error during auto-scheduling. Please try again.', 'error');
+                }
+                
+                button.disabled = false;
+                button.innerHTML = '⚡ Auto-Schedule All Patients';
+            }, 100);
+        }
+
+        function toggleAppointmentComplete(appointmentId) {
+            const appointment = state.appointments.find(a => a.id === appointmentId);
+            if (appointment) {
+                appointment.completed = !appointment.completed;
+                renderTimeline();
+                calculateSchedule();
+                
+                const status = appointment.completed ? 'completed' : 'reopened';
+                showAlert(`${appointment.name}'s appointment ${status}`, 'success', 2000);
+            }
+        }
+
+        // Enhanced timeline rendering
+        function renderTimeline() {
+            const timeline = document.getElementById('timeline');
+            timeline.innerHTML = '';
+
+            const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
+            const totalDayDuration = 12 * 60; // 12 hours
+            
+            // Add time markers every 30 minutes
+            for (let i = 0; i <= 24; i++) {
+                const timeInMins = dayStartMins + (i * 30);
+                const top = ((timeInMins - dayStartMins) / totalDayDuration) * 100;
+                
+                if (top > 100) break;
+                
+                const marker = document.createElement('div');
+                marker.className = 'time-marker';
+                marker.style.top = `${top}%`;
+                
+                const label = document.createElement('span');
+                label.className = 'time-label';
+                label.textContent = minutesToTime(timeInMins);
+                marker.appendChild(label);
+                
+                timeline.appendChild(marker);
+            }
+
+            // Render schedule items
+            if (state.schedule) {
+                state.schedule.timelineItems.forEach(item => {
+                    if (item.startMins < dayStartMins || item.startMins > dayStartMins + totalDayDuration) return;
+                    
+                    const top = ((item.startMins - dayStartMins) / totalDayDuration) * 100;
+                    const height = Math.max(((item.endMins - item.startMins) / totalDayDuration) * 100, 1);
+
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'timeline-item';
+                    itemDiv.style.top = `${Math.max(0, Math.min(top, 100))}%`;
+                    itemDiv.style.height = `${Math.max(height, 2)}%`;
+
+                    let content = '';
+
+                    switch (item.type) {
+                        case 'appointment':
+                            const colorClass = getPatientColor(item.duration);
+                            content = `
+                                <div class="appointment-item ${colorClass} ${item.completed ? 'completed' : ''}" 
+                                     draggable="true" 
+                                     ondragstart="handlePatientDragStart(event, '${item.id}')"
+                                     ondragend="handlePatientDragEnd(event)">
+                                    <div class="text ${item.completed ? 'text' : ''}">
+                                        <strong>${item.name} (${item.duration}m)</strong><br>
+                                        <small>${minutesToTime(item.startMins)} - ${minutesToTime(item.endMins)}</small>
+                                    </div>
+                                    <button class="complete-btn" onclick="toggleAppointmentComplete('${item.id}')" title="Mark as ${item.completed ? 'incomplete' : 'complete'}">
+                                        ${item.completed ? '✅' : '⭕'}
+                                    </button>
+                                </div>
+                            `;
+                            break;
+                        case 'break':
+                            content = `
+                                <div class="break-item">
+                                    <strong>☕ ${item.label}</strong><br>
+                                    <small>${minutesToTime(item.startMins)} - ${minutesToTime(item.endMins)}</small>
+                                </div>
+                            `;
+                            break;
+                        case 'billable':
+                        case 'non-billable':
+                            content = `
+                                <div class="task-item">
+                                    <strong>💼 ${item.label}</strong><br>
+                                    <small>${minutesToTime(item.startMins)} - ${minutesToTime(item.endMins)} (${item.type})</small>
+                                </div>
+                            `;
+                            break;
+                        case 'gap':
+                            if (item.duration >= 15) {
+                                content = `
+                                    <div class="gap-item" 
+                                         ondrop="handleGapDrop(event, ${JSON.stringify(item).replace(/"/g, '&quot;')})" 
+                                         ondragover="handleTimelineDragOver(event)">
+                                        <div>
+                                            ➕<br>
+                                            <small>Available<br>${item.duration} min</small>
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                            break;
+                    }
+
+                    if (content) {
+                        itemDiv.innerHTML = content;
+                        timeline.appendChild(itemDiv);
+                    }
+                });
+            }
+        }
+
+        // Enhanced schedule calculation
+        function calculateSchedule() {
+            const allScheduledItems = [
+                ...state.settings.breaks.map(b => ({ 
+                    ...b, 
+                    type: 'break', 
+                    startMins: timeStringToMinutes(b.start), 
+                    endMins: timeStringToMinutes(b.end) 
+                })),
+                ...state.settings.otherTasks.map(t => ({ 
+                    ...t, 
+                    type: t.type, 
+                    startMins: timeStringToMinutes(t.start), 
+                    endMins: timeStringToMinutes(t.end) 
+                })),
+                ...state.appointments.map(a => ({ 
+                    ...a, 
+                    type: 'appointment', 
+                    startMins: timeToMinutes24h(a.start + a.startPeriod), 
+                    endMins: timeToMinutes24h(a.end + a.endPeriod)
+                }))
+            ].sort((a, b) => a.startMins - b.startMins);
+
+            const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
+
+            // Calculate gaps
+            const gaps = [];
+            let lastEnd = dayStartMins + state.settings.setupTime;
+
+            allScheduledItems.forEach(item => {
+                if (item.startMins > lastEnd) {
+                    const gapDuration = item.startMins - lastEnd;
+                    gaps.push({ 
+                        start: lastEnd, 
+                        end: item.startMins, 
+                        duration: gapDuration, 
+                        type: 'gap',
+                        startMins: lastEnd,
+                        endMins: item.startMins
+                    });
+                }
+                lastEnd = Math.max(lastEnd, item.endMins);
+            });
+
+            // Final gap at end of day (up to 12 hours)
+            const dayEndMins = dayStartMins + 12 * 60;
+            if (dayEndMins > lastEnd) {
+                const gapDuration = dayEndMins - lastEnd;
+                gaps.push({ 
+                    start: lastEnd, 
+                    end: dayEndMins, 
+                    duration: gapDuration, 
+                    type: 'gap',
+                    startMins: lastEnd,
+                    endMins: dayEndMins
+                });
+            }
+
+            // Enhanced productivity calculations
+            const totalTreatmentTime = state.appointments.reduce((sum, apt) => sum + apt.duration, 0);
+            const completedTreatmentTime = state.appointments.filter(a => a.completed).reduce((sum, apt) => sum + apt.duration, 0);
+            const billableTaskTime = state.settings.otherTasks
+                .filter(t => t.type === 'billable')
+                .reduce((sum, t) => sum + (timeStringToMinutes(t.end) - timeStringToMinutes(t.start)), 0);
+            const nonBillableTaskTime = state.settings.otherTasks
+                .filter(t => t.type === 'non-billable')
+                .reduce((sum, t) => sum + (timeStringToMinutes(t.end) - timeStringToMinutes(t.start)), 0);
+            const totalBreakTime = state.settings.breaks
+                .reduce((sum, br) => sum + (timeStringToMinutes(br.end) - timeStringToMinutes(br.start)), 0);
+
+            const totalBillableTime = totalTreatmentTime + billableTaskTime;
+            const totalWorkTime = lastEnd - dayStartMins;
+            const timeUnavailable = totalBreakTime + nonBillableTaskTime;
+            const totalProductiveTimePossible = totalWorkTime - timeUnavailable;
+            const productivity = totalProductiveTimePossible > 0 ? ((totalBillableTime / totalProductiveTimePossible) * 100) : 0;
+
+            // Generate enhanced suggestions with clock-out analysis
+            const suggestions = [];
+            const clockOutData = calculateClockOutTime();
+            
+            if (clockOutData && clockOutData.clockOutTime) {
+                const clockOutMins = timeToMinutes24h(clockOutData.clockOutTime);
+                const currentEndMins = lastEnd;
+                
+                if (clockOutMins < currentEndMins) {
+                    const timeSaved = currentEndMins - clockOutMins;
+                    suggestions.push(`✨ You can clock out at <strong>${clockOutData.clockOutTime}</strong> and still meet your ${state.settings.productivityTarget}% target - saving ${Math.floor(timeSaved / 60)}h ${timeSaved % 60}m!`);
+                } else if (clockOutMins > currentEndMins) {
+                    const overtime = clockOutMins - currentEndMins;
+                    suggestions.push(`⏰ To meet your ${state.settings.productivityTarget}% target, you'd need to work until <strong>${clockOutData.clockOutTime}</strong> (${Math.floor(overtime / 60)}h ${overtime % 60}m overtime).`);
+                } else {
+                    suggestions.push(`🎯 Perfect! Your current schedule meets your ${state.settings.productivityTarget}% productivity target exactly.`);
+                }
+            }
+            
+            if (state.patientQueue.length > 0) {
+                const unscheduledTime = state.patientQueue.reduce((sum, p) => sum + p.duration, 0);
+                const availableGapTime = gaps.filter(g => g.duration >= 15).reduce((sum, g) => sum + g.duration, 0);
+                
+                if (availableGapTime >= unscheduledTime) {
+                    suggestions.push(`📅 Good news! You have ${Math.floor(availableGapTime / 60)}h ${availableGapTime % 60}m of available time to fit your ${state.patientQueue.length} unscheduled patients.`);
+                } else {
+                    suggestions.push(`⚠️ You have ${state.patientQueue.length} unscheduled patients (${unscheduledTime} min total) but only ${Math.floor(availableGapTime / 60)}h ${availableGapTime % 60}m available time.`);
+                }
+            }
+            
+            if (productivity < state.settings.productivityTarget) {
+                const minutesNeeded = Math.ceil((state.settings.productivityTarget / 100 * totalProductiveTimePossible) - totalBillableTime);
+                if (minutesNeeded > 0) {
+                    suggestions.push(`📈 To reach your ${state.settings.productivityTarget}% target, schedule ${minutesNeeded} more billable minutes.`);
+                }
+            } else {
+                suggestions.push(`🎯 Excellent! You're at ${productivity.toFixed(1)}% productivity, exceeding your ${state.settings.productivityTarget}% target.`);
+            }
+
+            const completionRate = state.appointments.length > 0 ? (state.appointments.filter(a => a.completed).length / state.appointments.length * 100) : 0;
+            if (state.appointments.length > 0) {
+                suggestions.push(`📊 Progress: ${state.appointments.filter(a => a.completed).length}/${state.appointments.length} appointments completed (${completionRate.toFixed(1)}%).`);
+            }
+
+            state.schedule = {
+                timelineItems: [...allScheduledItems, ...gaps].sort((a, b) => a.startMins - b.startMins),
+                totalBillableTime,
+                totalTreatmentTime,
+                completedTreatmentTime,
+                totalProductiveTimePossible,
+                productivity: Math.round(productivity * 10) / 10,
+                meetsTarget: productivity >= state.settings.productivityTarget,
+                suggestions,
+                completionRate: Math.round(completionRate * 10) / 10
+            };
+
+            renderClockOutCalculator();
+            renderSummary();
+            renderTimeline();
+            calculateWhatIf();
+        }
+
+        function renderSummary() {
+            if (!state.schedule) {
+                document.getElementById('summaryCard').classList.add('hidden');
+                return;
+            }
+
+            document.getElementById('summaryCard').classList.remove('hidden');
+
+            const summaryGrid = document.getElementById('summaryGrid');
+            summaryGrid.innerHTML = `
+                <div class="summary-card">
+                    <div class="summary-value ${state.schedule.meetsTarget ? 'text-green' : 'text-red'}">
+                        ${state.schedule.productivity}%
+                    </div>
+                    <div class="summary-label">Productivity</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value text-blue">
+                        ${Math.floor(state.schedule.totalBillableTime / 60)}:${(state.schedule.totalBillableTime % 60).toString().padStart(2, '0')}
+                    </div>
+                    <div class="summary-label">Billable Time</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value text-purple">
+                        ${state.appointments.length}
+                    </div>
+                    <div class="summary-label">Scheduled</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value ${state.patientQueue.length > 0 ? 'text-red' : 'text-green'}">
+                        ${state.patientQueue.length}
+                    </div>
+                    <div class="summary-label">Unscheduled</div>
+                </div>
+            `;
+
+            const insightsContainer = document.getElementById('insightsContainer');
+            insightsContainer.innerHTML = `
+                <div class="insights-box">
+                    <div class="insights-title">
+                        🧠 Smart Insights
+                    </div>
+                    ${state.schedule.suggestions.map(s => `<div class="insights-text">${s}</div>`).join('')}
+                </div>
+            `;
+        }
+
+        // Confirmation system
+        function showConfirmation(title, message, callback, buttonText = 'Delete') {
+            state.confirmCallback = callback;
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            document.getElementById('confirmBtn').textContent = buttonText;
+            document.getElementById('confirmationModal').classList.remove('hidden');
+        }
+
+        function hideConfirmation() {
+            document.getElementById('confirmationModal').classList.add('hidden');
+            state.confirmCallback = null;
+        }
+
+        function confirmAction() {
+            if (state.confirmCallback) {
+                state.confirmCallback();
+            }
+            hideConfirmation();
+        }
+
+        // Enhanced storage functions
+        function saveSettings() {
+            const saveBtn = document.getElementById('saveBtn');
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<div class="loading">Saving...</div>';
+            
+            try {
+                const dataToSave = {
+                    settings: state.settings,
+                    patientQueue: state.patientQueue,
+                    appointments: state.appointments,
+                    timestamp: new Date().toISOString()
+                };
+                
+                const serialized = JSON.stringify(dataToSave);
+                
+                if (serialized.length > 5000000) {
+                    throw new Error('Data too large for browser storage');
+                }
+                
+                localStorage.setItem('enhancedTherapyScheduler', serialized);
+                showAlert('Settings and schedule saved successfully!', 'success', 3000);
+            } catch (error) {
+                console.error('Save error:', error);
+                if (error.name === 'QuotaExceededError') {
+                    showAlert('Storage is full. Please clear some browser data and try again.', 'error');
+                } else {
+                    showAlert('Unable to save settings. Please try again.', 'error');
+                }
+            }
+            
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '💾 Save Settings';
+        }
+
+        function loadSettings() {
+            try {
+                const savedData = localStorage.getItem('enhancedTherapyScheduler');
+                
+                if (savedData) {
+                    const parsed = JSON.parse(savedData);
+                    
+                    if (parsed.settings) {
+                        state.settings = { ...state.settings, ...parsed.settings };
+                    }
+                    if (parsed.patientQueue) {
+                        state.patientQueue = parsed.patientQueue;
+                    }
+                    if (parsed.appointments) {
+                        state.appointments = parsed.appointments;
+                    }
+                    
+                    if (parsed.timestamp) {
+                        const savedDate = new Date(parsed.timestamp);
+                        showAlert(`Settings loaded from ${savedDate.toLocaleDateString()} ${savedDate.toLocaleTimeString()}`, 'success', 3000);
+                    }
+                }
+            } catch (error) {
+                console.error('Load error:', error);
+                showAlert('Error loading saved settings. Starting with defaults.', 'warning');
+            }
+        }
+
+        // Enhanced initialization
+        function init() {
+            try {
+                loadSettings();
+                
+                // Set form values from state
+                document.getElementById('startTime').value = state.settings.workDay.startTime;
+                document.getElementById('setupTime').value = state.settings.setupTime;
+                document.getElementById('transitionTime').value = state.settings.transitionTime;
+                document.getElementById('productivityTarget').value = state.settings.productivityTarget;
+
+                renderPatientQueue();
+                renderBreaks();
+                renderTasks();
+                calculateSchedule();
+                
+                // Focus on patient name input for better UX
+                document.getElementById('newPatientName').focus();
+                
+            } catch (error) {
+                console.error('Initialization error:', error);
+                showAlert('There was an issue initializing the scheduler. Please refresh the page.', 'error');
+            }
+        }
+
+        // Add keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                switch (e.key) {
+                    case 's':
+                        e.preventDefault();
+                        saveSettings();
+                        break;
+                    case 'p':
+                        e.preventDefault();
+                        window.print();
+                        break;
+                }
+            }
+        });
+
+        // Start the application
+        document.addEventListener('DOMContentLoaded', init);
+        
+        // Add CSS animation for slideOut
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideOut {
+                from { opacity: 1; transform: translateY(0); }
+                to { opacity: 0; transform: translateY(-20px); }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>

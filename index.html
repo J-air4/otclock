@@ -150,14 +150,19 @@
              const allScheduledItems = [
                 ...state.settings.breaks.map(b => ({ ...b, type: 'break', startMins: timeStringToMinutes(b.start), endMins: timeStringToMinutes(b.end) })),
                 ...state.settings.otherTasks.map(t => ({ ...t, type: t.type, startMins: timeStringToMinutes(t.start), endMins: timeStringToMinutes(t.end) })),
-                ...state.appointments.map(a => ({ ...a, type: 'appointment', startMins: timeToMinutes(a.start, a.startPeriod), endMins: timeToMinutes(a.end, a.endPeriod) + (a.type === 'appointment' ? state.settings.transitionTime : 0) }))
+                ...state.appointments.map(a => {
+                    const startMins = timeToMinutes(a.start, a.startPeriod);
+                    const endMins = startMins + a.duration;
+                    return { ...a, type: 'appointment', startMins, endMins };
+                })
             ].sort((a, b) => a.startMins - b.startMins);
 
             const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
             
             let lastEnd = dayStartMins + state.settings.setupTime;
             allScheduledItems.forEach(item => {
-                lastEnd = Math.max(lastEnd, item.endMins);
+                const effectiveEndMins = item.type === 'appointment' ? item.endMins + state.settings.transitionTime : item.endMins;
+                lastEnd = Math.max(lastEnd, effectiveEndMins);
             });
 
             // Calculate Gaps between items
@@ -167,7 +172,8 @@
                 if (item.startMins > lastGapCheck) {
                     gaps.push({ id: `gap-${lastGapCheck}`, start: lastGapCheck, end: item.startMins, duration: item.startMins - lastGapCheck, type: 'gap' });
                 }
-                lastGapCheck = Math.max(lastGapCheck, item.endMins);
+                const effectiveEndMins = item.type === 'appointment' ? item.endMins + state.settings.transitionTime : item.endMins;
+                lastGapCheck = Math.max(lastGapCheck, effectiveEndMins);
             });
 
             // Productivity Calculations
@@ -402,7 +408,7 @@
                 const fixedEvents = [
                     ...state.settings.breaks.map(b => ({ start: timeStringToMinutes(b.start), end: timeStringToMinutes(b.end) })),
                     ...state.settings.otherTasks.map(t => ({ start: timeStringToMinutes(t.start), end: timeStringToMinutes(t.end) })),
-                    ...currentAppointments.map(a => ({ start: timeToMinutes(a.start, a.startPeriod), end: timeToMinutes(a.end, a.endPeriod) + state.settings.transitionTime }))
+                    ...currentAppointments.map(a => ({ start: timeToMinutes(a.start, a.startPeriod), end: timeToMinutes(a.start, a.startPeriod) + a.duration + state.settings.transitionTime }))
                 ].sort((a,b) => a.start - b.start);
 
                 const gaps = [];

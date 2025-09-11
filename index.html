@@ -3,2303 +3,1048 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced Therapy Scheduler with Productivity Calculator</title>
+    <title>Interactive Therapy Scheduler</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: #111827;
-            color: #d1d5db;
-            min-height: 100vh;
-            line-height: 1.5;
+            font-family: 'Inter', sans-serif;
         }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 16px;
-        }
-
-        .card {
-            background: #1f2937;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-            margin-bottom: 24px;
-            transition: box-shadow 0.3s ease;
-            border: 1px solid #374151;
-        }
-
-        .card:hover {
-            box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.4);
-        }
-
-        .card-content {
-            padding: 24px;
-        }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 24px;
-            flex-wrap: wrap;
-            gap: 16px;
-        }
-
-        .title {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #f9fafb;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .subtitle {
-            color: #9ca3af;
-            margin-bottom: 24px;
-            font-size: 1.1rem;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 12px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            text-decoration: none;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #eab308, #ca8a04);
-            color: #111827;
-        }
-
-        .btn-primary:hover {
-            background: linear-gradient(135deg, #ca8a04, #a16207);
-            transform: translateY(-2px);
-        }
-
-        .btn-gray {
-            background: #6b7280;
-            color: #f9fafb;
-        }
-
-        .btn-gray:hover {
-            background: #4b5563;
-            transform: translateY(-2px);
-        }
-
-        .btn-danger {
-            background: linear-gradient(135deg, #dc2626, #991b1b);
-            color: #fecaca;
-        }
-
-        .btn-danger:hover {
-            background: linear-gradient(135deg, #991b1b, #7f1d1d);
-            transform: translateY(-2px);
-        }
-
-        .btn-small {
-            padding: 6px 12px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none !important;
-        }
-
-        .grid {
-            display: grid;
-            gap: 24px;
-        }
-
-        .grid-1-2 {
-            grid-template-columns: 1fr 2fr;
-        }
-
-        .grid-2 {
-            grid-template-columns: repeat(2, 1fr);
-        }
-
-        .grid-4 {
-            grid-template-columns: repeat(4, 1fr);
-        }
-
-        @media (max-width: 1024px) {
-            .grid-1-2 {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .grid-2, .grid-4 {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .input {
-            padding: 12px 16px;
-            border: 2px solid #374151;
-            border-radius: 8px;
-            font-size: 14px;
-            width: 100%;
-            transition: all 0.2s ease;
-            background: #374151;
-            color: #f9fafb;
-        }
-
-        .input:focus {
-            outline: none;
-            border-color: #eab308;
-            box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.1);
-            transform: translateY(-1px);
-        }
-
-        .label {
-            display: block;
-            font-weight: 600;
-            color: #f3f4f6;
-            margin-bottom: 8px;
-            font-size: 14px;
-        }
-
-        .alert {
-            padding: 16px;
-            border-radius: 8px;
-            margin-bottom: 16px;
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            animation: slideIn 0.3s ease;
-        }
-
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .alert-error {
-            background: #1f2937;
-            border: 1px solid #dc2626;
-            color: #fca5a5;
-        }
-
-        .alert-success {
-            background: #1f2937;
-            border: 1px solid #16a34a;
-            color: #86efac;
-        }
-
-        .alert-warning {
-            background: #1f2937;
-            border: 1px solid #eab308;
-            color: #fde68a;
-        }
-
-        .patient-queue {
-            background: rgba(17, 24, 39, 0.5);
-            border-radius: 12px;
-            padding: 12px;
-            max-height: 400px;
-            overflow-y: auto;
-            border: 2px dashed #4b5563;
-            transition: all 0.3s ease;
-            min-height: 100px;
-        }
-
-        .patient-queue.drag-over {
-            background: rgba(59, 130, 246, 0.1);
-            border-color: #3b82f6;
-            transform: scale(1.02);
-        }
-
-        .patient-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 16px;
-            margin-bottom: 8px;
-            border-radius: 8px;
-            cursor: grab;
-            user-select: none;
-            transition: all 0.3s ease;
-            background: #374151;
-            border: 2px solid transparent;
-            position: relative;
-        }
-
-        .patient-item:active {
-            cursor: grabbing;
-            transform: scale(1.05);
-        }
-
-        .patient-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.4);
-        }
-
-        .patient-item.dragging {
-            opacity: 0.8;
-            transform: rotate(5deg) scale(1.1);
-            z-index: 1000;
-        }
-
-        .patient-green {
-            background: rgba(34, 197, 94, 0.2);
-            border-color: #22c55e;
-            color: #86efac;
-        }
-
-        .patient-blue {
-            background: rgba(59, 130, 246, 0.2);
-            border-color: #3b82f6;
-            color: #93c5fd;
-        }
-
-        .patient-purple {
-            background: rgba(168, 85, 247, 0.2);
-            border-color: #a855f7;
-            color: #c4b5fd;
-        }
-
-        .patient-yellow {
-            background: rgba(234, 179, 8, 0.2);
-            border-color: #eab308;
-            color: #fde68a;
-        }
-
-        .patient-info {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .patient-name {
-            font-weight: 600;
-            font-size: 14px;
-        }
-
-        .patient-duration {
-            font-size: 12px;
-            opacity: 0.8;
-        }
-
-        .patient-actions {
-            display: flex;
-            gap: 8px;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-        }
-
-        .patient-item:hover .patient-actions {
-            opacity: 1;
-        }
-
-        .timeline {
-            position: relative;
-            height: 800px;
-            background: linear-gradient(to bottom, rgba(17, 24, 39, 0.5), rgba(31, 41, 55, 0.5));
-            border-radius: 12px;
-            margin-left: 60px;
-            border: 3px dashed #4b5563;
-            transition: all 0.3s ease;
-            overflow: hidden;
-        }
-
-        .timeline::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 50%;
-            width: 2px;
-            height: 100%;
-            background: linear-gradient(to bottom, #6b7280, #9ca3af, #6b7280);
-            transform: translateX(-50%);
-        }
-
-        .timeline.drag-over {
-            border-color: #3b82f6;
-            background: linear-gradient(to bottom, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.2));
-            transform: scale(1.01);
-            box-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
-        }
-
-        .time-marker {
-            position: absolute;
-            width: 100%;
-            border-top: 1px solid #4b5563;
-            z-index: 1;
-        }
-
-        .time-marker:nth-child(even) {
-            border-top-style: dashed;
-            opacity: 0.5;
-        }
-
-        .time-label {
-            position: absolute;
-            left: -60px;
-            top: -10px;
-            font-size: 12px;
-            color: #9ca3af;
-            font-weight: 600;
-            background: #1f2937;
-            padding: 2px 8px;
-            border-radius: 4px;
-            border: 1px solid #374151;
-            min-width: 50px;
-            text-align: center;
-        }
-
-        .timeline-item {
-            position: absolute;
-            width: 100%;
-            z-index: 2;
-        }
-
-        .appointment-item {
-            position: relative;
-            width: 88%;
-            left: 6%;
-            padding: 12px;
-            border-radius: 8px;
-            font-size: 13px;
-            cursor: grab;
-            user-select: none;
-            border: 2px solid;
-            transition: all 0.3s ease;
-            background: #374151;
-        }
-
-        .appointment-item:hover {
-            transform: scale(1.02);
-            box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.4);
-            z-index: 10;
-        }
-
-        .appointment-item:hover .complete-btn {
-            opacity: 1;
-        }
-
-        .appointment-item.dragging {
-            transform: rotate(2deg) scale(1.05);
-            z-index: 1000;
-            opacity: 0.9;
-        }
-
-        .break-item {
-            position: absolute;
-            width: 88%;
-            left: 6%;
-            padding: 12px;
-            border-radius: 8px;
-            background: rgba(251, 191, 36, 0.2);
-            border: 2px solid #fbbf24;
-            color: #fde68a;
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .task-item {
-            position: absolute;
-            width: 88%;
-            left: 6%;
-            padding: 12px;
-            border-radius: 8px;
-            background: rgba(75, 85, 99, 0.5);
-            border: 2px solid #6b7280;
-            color: #d1d5db;
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .gap-item {
-            position: absolute;
-            width: 88%;
-            left: 6%;
-            border-radius: 8px;
-            border: 3px dashed #4b5563;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: #9ca3af;
-            font-size: 12px;
-            font-weight: 600;
-            text-align: center;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            background: rgba(17, 24, 39, 0.3);
-        }
-
-        .gap-item:hover {
-            background: rgba(34, 197, 94, 0.1);
-            border-color: #22c55e;
-            color: #86efac;
-            transform: scale(1.02);
-        }
-
-        .gap-item.valid-drop {
-            background: rgba(59, 130, 246, 0.2);
-            border-color: #3b82f6;
-            color: #93c5fd;
-            animation: pulse 1s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-
-        .complete-btn {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            padding: 4px;
-            background: rgba(0, 0, 0, 0.7);
-            border-radius: 50%;
-            opacity: 0;
-            transition: all 0.3s ease;
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-            font-size: 12px;
-            width: 24px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .complete-btn:hover {
-            background: rgba(0, 0, 0, 0.9);
-            transform: scale(1.1);
-        }
-
-        .completed {
-            opacity: 0.6;
-            filter: grayscale(0.5);
-        }
-
-        .completed .text {
-            text-decoration: line-through;
-        }
-
-        .accordion {
-            border: 2px solid #374151;
-            border-radius: 12px;
-            overflow: hidden;
-            transition: all 0.3s ease;
-            background: #1f2937;
-        }
-
-        .accordion:hover {
-            border-color: #4b5563;
-            box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.3);
-        }
-
-        .accordion summary {
-            padding: 20px;
-            background: linear-gradient(135deg, #1f2937, #374151);
-            cursor: pointer;
-            font-weight: 700;
-            user-select: none;
-            font-size: 16px;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            color: #f9fafb;
-        }
-
-        .accordion summary:hover {
-            background: linear-gradient(135deg, #374151, #4b5563);
-        }
-
-        .accordion[open] summary {
-            border-bottom: 2px solid #374151;
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.2));
-        }
-
-        .accordion-content {
-            padding: 20px;
-            background: #1f2937;
-        }
-
-        .form-row {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 16px;
-            background: rgba(17, 24, 39, 0.5);
-            border-radius: 8px;
-            margin-bottom: 12px;
-            border: 1px solid #374151;
-            transition: all 0.3s ease;
-        }
-
-        .form-row:hover {
-            background: rgba(31, 41, 55, 0.7);
-            border-color: #4b5563;
-        }
-
-        .settings-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 16px;
-            padding: 12px;
-            background: rgba(17, 24, 39, 0.5);
-            border-radius: 8px;
-            border: 1px solid #374151;
-        }
-
-        .summary-card {
-            text-align: center;
-            padding: 20px;
-            background: linear-gradient(135deg, rgba(31, 41, 55, 0.8), rgba(55, 65, 81, 0.8));
-            border-radius: 12px;
-            border: 1px solid #374151;
-            transition: all 0.3s ease;
-        }
-
-        .summary-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.4);
-            border-color: #4b5563;
-        }
-
-        .summary-value {
-            font-size: 2.5rem;
-            font-weight: bold;
-            margin-bottom: 8px;
-            background: linear-gradient(135deg, #f9fafb, #d1d5db);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .summary-label {
-            font-size: 14px;
-            color: #9ca3af;
-            font-weight: 600;
-        }
-
-        .productivity-calculator {
-            background: rgba(17, 24, 39, 0.7);
-            border: 2px solid #374151;
-            border-radius: 12px;
-            padding: 20px;
-            margin-top: 20px;
-            transition: all 0.3s ease;
-        }
-
-        .productivity-calculator:hover {
-            border-color: #4b5563;
-            box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.3);
-        }
-
-        .insights-box {
-            padding: 20px;
-            background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(59, 130, 246, 0.1));
-            border: 2px solid #4338ca;
-            border-radius: 12px;
-            margin-top: 20px;
-            transition: all 0.3s ease;
-        }
-
-        .insights-box:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px -5px rgba(67, 56, 202, 0.3);
-        }
-
-        .insights-title {
-            font-weight: 700;
-            color: #a5b4fc;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 16px;
-        }
-
-        .insights-text {
-            font-size: 14px;
-            color: #c7d2fe;
-            margin-bottom: 8px;
-            line-height: 1.6;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: #374151;
-            border-radius: 4px;
-            overflow: hidden;
-            margin: 8px 0;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #eab308, #16a34a);
-            border-radius: 4px;
-            transition: width 0.5s ease;
-        }
-
-        .projection-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 12px;
-            background: rgba(55, 65, 81, 0.5);
-            border-radius: 6px;
-            margin-bottom: 6px;
-            font-size: 14px;
-            transition: all 0.2s ease;
-        }
-
-        .projection-item:hover {
-            background: rgba(75, 85, 99, 0.7);
-        }
-
-        .loading {
-            position: relative;
-            overflow: hidden;
-        }
-
-        .loading::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-            animation: loading 1.5s infinite;
-        }
-
-        @keyframes loading {
-            0% { left: -100%; }
-            100% { left: 100%; }
-        }
-
-        .confirmation-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-            animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        .confirmation-content {
-            background: #1f2937;
-            padding: 24px;
-            border-radius: 12px;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
-            max-width: 400px;
-            width: 90%;
-            animation: slideUp 0.3s ease;
-            border: 1px solid #374151;
-        }
-
-        @keyframes slideUp {
-            from { transform: translateY(20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        .time-input-container {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .time-adjust-buttons {
-            display: flex;
-            flex-direction: column;
-            border: 1px solid #4b5563;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .time-adjust-btn {
-            padding: 4px 8px;
-            background: #374151;
-            border: none;
-            color: #d1d5db;
-            font-size: 12px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .time-adjust-btn:hover {
-            background: #4b5563;
-        }
-
-        .time-adjust-btn:first-child {
-            border-bottom: 1px solid #4b5563;
-        }
-
-        .text-green { color: #10b981; }
-        .text-red { color: #ef4444; }
-        .text-blue { color: #3b82f6; }
-        .text-gray { color: #9ca3af; }
-        .text-purple { color: #a855f7; }
-        .text-yellow { color: #eab308; }
-
-        .space-y-4 > * + * { margin-top: 16px; }
-        .space-y-2 > * + * { margin-top: 8px; }
-        .mb-4 { margin-bottom: 16px; }
-        .mt-4 { margin-top: 16px; }
-        .flex { display: flex; }
-        .items-center { align-items: center; }
-        .justify-between { justify-content: space-between; }
-        .gap-2 { gap: 8px; }
-        .gap-3 { gap: 12px; }
-        .w-full { width: 100%; }
-        .w-20 { width: 80px; }
-        .hidden { display: none !important; }
-
         @media print {
-            body * { visibility: hidden; }
-            .printable-area, .printable-area * { visibility: visible; }
-            .printable-area { position: absolute; left: 0; top: 0; width: 100%; }
-            .no-print { display: none !important; }
+            body {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .printable-area, .printable-area * {
+                visibility: visible;
+                background: white !important;
+                color: black !important;
+            }
+            .printable-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            .no-print { display: none; }
+            .border, .border-gray-700 { border-color: #ccc !important; }
+            .text-yellow-400 { color: #f59e0b !important; }
+            .text-green-400 { color: #10b981 !important; }
+            .bg-yellow-500\/20 { background-color: rgba(234, 179, 8, 0.2) !important; }
+            .bg-blue-500\/20 { background-color: rgba(59, 130, 246, 0.2) !important; }
+            .bg-green-500\/20 { background-color: rgba(16, 185, 129, 0.2) !important; }
+            .bg-purple-500\/20 { background-color: rgba(139, 92, 246, 0.2) !important; }
+        }
+        @keyframes fade-in-down {
+            0% { opacity: 0; transform: translateY(-10px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-down { animation: fade-in-down 0.3s ease-out forwards; }
+        input[type="time"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
         }
     </style>
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 </head>
-<body>
-    <div class="container printable-area">
-        <div class="no-print">
-            <div class="card">
-                <div class="card-content">
-                    <div class="header">
-                        <div>
-                            <h1 class="title">
-                                📅 Enhanced Therapy Scheduler
-                            </h1>
-                            <p class="subtitle">Advanced productivity tracking with optimal clock-out time calculations.</p>
-                        </div>
-                        <div class="flex gap-2">
-                            <button onclick="saveSettings()" class="btn btn-primary" id="saveBtn">
-                                💾 Save Settings
-                            </button>
-                            <button onclick="window.print()" class="btn btn-gray">
-                                🖨️ Print Schedule
-                            </button>
-                        </div>
-                    </div>
-                    <div id="alertContainer" class="hidden"></div>
-                </div>
-            </div>
-        </div>
+<body class="bg-gray-900">
+    <div id="app-root"></div>
 
-        <div class="grid grid-1-2">
-            <!-- Left Column: Controls -->
-            <div class="space-y-4 no-print">
-                <!-- Patient Queue -->
-                <div class="card">
-                    <div class="card-content">
-                        <h2 class="text-xl font-semibold mb-4 flex items-center gap-3">
-                            🕐 Patient Queue (<span id="queueCount" class="text-blue">0</span>)
-                        </h2>
-                        <div class="flex gap-2 mb-4">
-                            <input 
-                                type="text" 
-                                id="newPatientName" 
-                                placeholder="Patient initials (e.g. J.D.)" 
-                                class="input"
-                                maxlength="10"
-                                onkeydown="if(event.key==='Enter') document.getElementById('newPatientDuration').focus()"
-                            >
-                            <input 
-                                type="number" 
-                                id="newPatientDuration" 
-                                placeholder="Duration (min)" 
-                                class="input"
-                                min="15"
-                                max="120"
-                                step="5"
-                                onkeydown="if(event.key==='Enter') addPatient()"
-                            >
-                            <button onclick="addPatient()" class="btn btn-primary" id="addPatientBtn">
-                                ➕ Add
-                            </button>
-                        </div>
-                        <div class="flex gap-2 mb-4">
-                            <button onclick="addQuickPatient(25)" class="btn btn-gray btn-small w-full">+25min</button>
-                            <button onclick="addQuickPatient(30)" class="btn btn-gray btn-small w-full">+30min</button>
-                            <button onclick="addQuickPatient(38)" class="btn btn-gray btn-small w-full">+38min</button>
-                        </div>
-                        <div id="patientQueue" class="patient-queue" 
-                             ondragover="handleQueueDragOver(event)"
-                             ondrop="handleQueueDrop(event)"></div>
-                        <button onclick="autoSchedule()" class="btn btn-primary w-full mt-4" id="autoScheduleBtn">
-                            ⚡ Auto-Schedule All Patients
-                        </button>
-                    </div>
-                </div>
+    <script type="module">
+        // --- CONSTANTS ---
+        const MINIMUM_SCHEDULABLE_DURATION = 15;
 
-                <!-- Work Day & Breaks -->
-                <details class="accordion" open>
-                    <summary>
-                        🕐 Work Day & Breaks
-                    </summary>
-                    <div class="accordion-content space-y-4">
-                        <!-- Work Hours -->
-                        <div>
-                            <label class="label">Work Start Time</label>
-                            <div class="form-row">
-                                <div class="time-input-container">
-                                    <input type="time" id="startTime" value="08:30" class="input" onchange="updateWorkDay()">
-                                    <div class="time-adjust-buttons">
-                                        <button class="time-adjust-btn" onclick="adjustStartTime(15)" title="Add 15 minutes">+</button>
-                                        <button class="time-adjust-btn" onclick="adjustStartTime(-15)" title="Subtract 15 minutes">-</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Breaks -->
-                        <div>
-                            <label class="label">Scheduled Breaks</label>
-                            <div id="breaksContainer" class="space-y-2"></div>
-                            <button onclick="addBreak()" class="btn btn-gray w-full mt-2">
-                                ☕ Add Break
-                            </button>
-                        </div>
-                    </div>
-                </details>
-
-                <!-- Other Tasks & Settings -->
-                <details class="accordion">
-                    <summary>
-                        ⚙️ Tasks & Settings
-                    </summary>
-                    <div class="accordion-content space-y-4">
-                        <!-- Other Tasks -->
-                        <div>
-                            <label class="label">Other Scheduled Tasks</label>
-                            <div id="tasksContainer" class="space-y-2"></div>
-                            <button onclick="addTask()" class="btn btn-gray w-full mt-2">
-                                ➕ Add Task
-                            </button>
-                        </div>
-
-                        <!-- Settings -->
-                        <div>
-                            <label class="label">Scheduling Settings</label>
-                            <div class="space-y-2">
-                                <div class="settings-row">
-                                    <label>Setup Time (minutes)</label>
-                                    <input type="number" id="setupTime" value="5" class="input w-20" min="0" max="30" onchange="updateSettings()">
-                                </div>
-                                <div class="settings-row">
-                                    <label>Transition Time (minutes)</label>
-                                    <input type="number" id="transitionTime" value="2" class="input w-20" min="0" max="15" onchange="updateSettings()">
-                                </div>
-                                <div class="settings-row">
-                                    <label>Productivity Target (%)</label>
-                                    <input type="number" id="productivityTarget" value="85" class="input w-20" min="50" max="100" onchange="updateSettings()">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </details>
-            </div>
-
-            <!-- Right Column: Timeline & Summary -->
-            <div class="space-y-4">
-                <!-- Productivity Clock-Out Calculator -->
-                <div id="clockOutCard" class="card">
-                    <div class="card-content">
-                        <h2 class="text-xl font-bold mb-4 flex items-center gap-3">
-                            ⏰ Productivity Clock-Out Calculator
-                        </h2>
-                        <div class="grid grid-2 mb-4">
-                            <div class="summary-card">
-                                <div id="clockOutTime" class="summary-value text-green">--:--</div>
-                                <div class="summary-label">Target Clock-Out</div>
-                            </div>
-                            <div class="summary-card">
-                                <div id="currentProgress" class="summary-value text-blue">--%</div>
-                                <div class="summary-label">Daily Progress</div>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-4">
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-sm text-gray">Progress Toward Target</span>
-                                <span id="progressPercentage" class="text-sm text-gray">0%</span>
-                            </div>
-                            <div class="progress-bar">
-                                <div id="progressFill" class="progress-fill" style="width: 0%"></div>
-                            </div>
-                        </div>
-                        
-                        <div id="productivityProjections" class="space-y-2">
-                            <h4 class="font-semibold text-yellow mb-2">Clock-Out Scenarios:</h4>
-                        </div>
-                        
-                        <details class="productivity-calculator mt-4">
-                            <summary class="font-semibold text-gray cursor-pointer flex items-center gap-2">
-                                📊 What-If Calculator
-                            </summary>
-                            <div class="mt-4 space-y-4">
-                                <div class="space-y-2">
-                                    <label class="block text-sm font-medium text-gray">If I clock out at...</label>
-                                    <div class="time-input-container">
-                                        <input type="time" id="whatIfTime" value="17:00" class="input" onchange="calculateWhatIf()">
-                                        <div class="time-adjust-buttons">
-                                            <button class="time-adjust-btn" onclick="adjustWhatIfTime(30)">+</button>
-                                            <button class="time-adjust-btn" onclick="adjustWhatIfTime(-30)">-</button>
-                                        </div>
-                                    </div>
-                                    <p class="text-sm text-gray mt-2">
-                                        Your productivity would be: <strong id="whatIfProductivity" class="text-lg text-yellow">0.0%</strong>
-                                    </p>
-                                </div>
-                                <hr style="border-color: #374151;"/>
-                                <div class="space-y-2">
-                                     <label class="block text-sm font-medium text-gray">If I add extra billable minutes...</label>
-                                     <div class="flex items-center gap-2">
-                                        <input type="number" id="extraMinutes" placeholder="e.g. 30" class="input" onchange="calculateWhatIf()">
-                                        <span class="text-sm text-gray">minutes</span>
-                                     </div>
-                                     <p class="text-sm text-gray">
-                                         New productivity: <strong id="whatIfExtraProductivity" class="text-lg text-yellow">0.0%</strong>
-                                     </p>
-                                </div>
-                            </div>
-                        </details>
-                    </div>
-                </div>
-
-                <!-- Summary -->
-                <div id="summaryCard" class="card">
-                    <div class="card-content">
-                        <h2 class="text-2xl font-bold mb-4 flex items-center gap-3">
-                            📊 Daily Summary
-                        </h2>
-                        <div class="grid grid-4 mb-4" id="summaryGrid"></div>
-                        <div id="insightsContainer"></div>
-                    </div>
-                </div>
-
-                <!-- Timeline -->
-                <div class="card">
-                    <div class="card-content">
-                        <h2 class="text-xl font-semibold mb-4 flex items-center gap-3">
-                            📆 Visual Schedule
-                            <span class="text-sm text-gray font-normal ml-auto">Drag patients to open time slots</span>
-                        </h2>
-                        <div 
-                            id="timeline" 
-                            class="timeline"
-                            ondragover="handleTimelineDragOver(event)"
-                            ondrop="handleTimelineDrop(event)"
-                            ondragleave="handleTimelineDragLeave(event)"
-                        >
-                            <!-- Time markers and schedule items will be generated here -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Confirmation Modal -->
-    <div id="confirmationModal" class="confirmation-modal hidden">
-        <div class="confirmation-content">
-            <h3 class="text-lg font-bold mb-4 text-yellow" id="confirmTitle">Confirm Action</h3>
-            <p class="text-gray mb-6" id="confirmMessage">Are you sure you want to proceed?</p>
-            <div class="flex gap-3 justify-end">
-                <button onclick="hideConfirmation()" class="btn btn-gray">Cancel</button>
-                <button onclick="confirmAction()" class="btn btn-danger" id="confirmBtn">Delete</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // Enhanced global state with productivity tracking
-        let state = {
-            settings: {
-                workDay: { startTime: '08:30' },
-                breaks: [{ id: 1, start: '12:00', end: '12:30', label: 'Lunch Break' }],
-                otherTasks: [{ id: 1, start: '14:00', end: '14:30', label: 'Documentation', type: 'non-billable' }],
-                transitionTime: 2,
-                setupTime: 5,
-                productivityTarget: 85
-            },
-            patientQueue: [
-                { id: 'p1', name: 'J.D.', duration: 45 }, 
-                { id: 'p2', name: 'M.S.', duration: 30 }, 
-                { id: 'p3', name: 'A.B.', duration: 60 },
-                { id: 'p4', name: 'R.K.', duration: 45 }
-            ],
-            appointments: [],
-            schedule: null,
-            draggedPatient: null,
-            confirmCallback: null
+        // --- ICONS (SVG Strings) ---
+        const icons = {
+            Clock: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+            Plus: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`,
+            Trash2: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`,
+            Calendar: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>`,
+            AlertCircle: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>`,
+            CheckCircle: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+            Coffee: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>`,
+            TrendingUp: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`,
+            Save: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>`,
+            Briefcase: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`,
+            BrainCircuit: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-5.993.142"/><path d="M12 5a3 3 0 1 1 5.993.142"/><path d="M15 13a3 3 0 1 0-5.993.142"/><path d="M15 13a3 3 0 1 1 5.993.142"/><path d="M9 13a3 3 0 1 1 5.993.142"/><path d="M9 13a3 3 0 1 0-5.993.142"/><path d="M6 8.5A2.5 2.5 0 0 1 3.5 6v0A2.5 2.5 0 0 1 6 3.5V0"/><path d="M18 8.5A2.5 2.5 0 0 0 20.5 6v0A2.5 2.5 0 0 0 18 3.5V0"/><path d="M9 22a2.5 2.5 0 0 0 2.5-2.5v-1A2.5 2.5 0 0 0 9 16h0a2.5 2.5 0 0 0-2.5 2.5v1A2.5 2.5 0 0 0 9 22Z"/><path d="M15 22a2.5 2.5 0 0 1-2.5-2.5v-1A2.5 2.5 0 0 1 15 16h0a2.5 2.5 0 0 1 2.5 2.5v1A2.5 2.5 0 0 1 15 22Z"/><path d="M12 13a2.5 2.5 0 0 0 2.5-2.5v-1A2.5 2.5 0 0 0 12 7h0a2.5 2.5 0 0 0-2.5 2.5v1A2.5 2.5 0 0 0 12 13Z"/><path d="M12 5.5V7"/><path d="M15 13v-1.5"/><path d="M9 13v-1.5"/><path d="M18 8.5v1"/><path d="M6 8.5v1"/></svg>`,
+            Printer: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>`,
+            X: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>`,
+            Zap: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+            Edit: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
         };
 
-        // Enhanced utility functions
-        function timeStringToMinutes(time24h) {
+        const getIcon = (name, size = 16) => {
+            const svg = icons[name] || '';
+            return svg.replace('width="24"', `width="${size}"`).replace('height="24"', `height="${size}"`);
+        }
+
+        // --- GLOBAL STATE ---
+        const state = {
+            settings: {
+                workDay: { startTime: '08:30' },
+                breaks: [{ id: 'break-1', start: '12:00', end: '12:30', label: 'Lunch' }],
+                otherTasks: [{ id: 'task-1', start: '14:00', end: '14:30', label: 'Documentation', type: 'non-billable' }],
+                transitionTime: 2,
+                setupTime: 5,
+                productivityTarget: 93,
+                workdayDurationHours: 12,
+            },
+            appointments: [],
+            patientQueue: [],
+            schedule: null,
+            notification: { message: '', type: '' },
+            isClearModalOpen: false,
+            isEditModalOpen: false,
+            editingAppointment: null,
+            draggedPatient: null,
+            patientCounter: 1,
+            productivityCalculator: {
+                extraMinutes: '',
+                endTime: '17:00'
+            }
+        };
+
+        // --- HELPER FUNCTIONS ---
+        const timeToMinutes = (time, period) => {
+            if (!time) return 0;
+            const [hours, minutes] = time.split(':').map(Number);
+            if (isNaN(hours) || isNaN(minutes)) return 0;
+            let totalHours = hours;
+            if (period === 'PM' && hours !== 12) totalHours += 12;
+            else if (period === 'AM' && hours === 12) totalHours = 0; // Midnight case
+            return totalHours * 60 + minutes;
+        };
+
+        const minutesToTime = (totalMinutes) => {
+            if (isNaN(totalMinutes) || totalMinutes < 0) return 'Invalid Time';
+            const hours24 = Math.floor(totalMinutes / 60);
+            const minutes = Math.round(totalMinutes % 60);
+            const period = hours24 >= 12 ? 'PM' : 'AM';
+            let displayHours = hours24 % 12;
+            if (displayHours === 0) displayHours = 12; // 0 = 12 AM, 12 = 12 PM
+            return `${displayHours}:${minutes.toString().padStart(2, '0')}${period}`;
+        };
+
+        const getAppointmentColor = (duration) => {
+            // Dark theme optimized colors
+            if (duration <= 25) return 'bg-yellow-500/20 border-yellow-400 text-yellow-200';
+            if (duration <= 35) return 'bg-blue-500/20 border-blue-400 text-blue-200';
+            if (duration <= 45) return 'bg-green-500/20 border-green-400 text-green-200';
+            return 'bg-purple-500/20 border-purple-400 text-purple-200';
+        };
+
+        const timeStringToMinutes = (time24h) => {
             if (!time24h) return 0;
             const [hours, minutes] = time24h.split(':').map(Number);
             if (isNaN(hours) || isNaN(minutes)) return 0;
             return hours * 60 + minutes;
-        }
-
-        function minutesToTime(totalMinutes) {
-            if (isNaN(totalMinutes) || totalMinutes < 0) return 'Invalid';
-            
-            const roundedTotalMinutes = Math.round(totalMinutes);
-            const hours = Math.floor(roundedTotalMinutes / 60);
-            const minutes = roundedTotalMinutes % 60;
-            const period = hours >= 12 ? 'PM' : 'AM';
-            let displayHours = hours % 12;
-            if (displayHours === 0) displayHours = 12;
-            
-            return `${displayHours}:${minutes.toString().padStart(2, '0')}${period}`;
-        }
-
-        function timeToMinutes24h(timeStr) {
-            const [time, period] = timeStr.includes('M') ? [timeStr.slice(0, -2), timeStr.slice(-2)] : [timeStr, null];
-            if (!period) return timeStringToMinutes(timeStr);
-            
-            const [hours, minutes] = time.split(':').map(Number);
-            let totalHours = hours;
-            if (period === 'PM' && hours !== 12) totalHours += 12;
-            else if (period === 'AM' && hours === 12) totalHours = 0;
-            
-            return totalHours * 60 + minutes;
-        }
-
-        function getPatientColor(duration) {
-            if (duration <= 25) return 'patient-yellow';
-            if (duration <= 35) return 'patient-blue';
-            if (duration <= 45) return 'patient-green';
-            return 'patient-purple';
-        }
-
-        function generatePatientId() {
-            return 'p' + Date.now() + Math.random().toString(36).substr(2, 5);
-        }
-
-        // Enhanced alert system
-        function showAlert(message, type = 'error', duration = 4000) {
-            const container = document.getElementById('alertContainer');
-            const alertId = 'alert-' + Date.now();
-            
-            const iconMap = {
-                error: '⚠️',
-                success: '✅',
-                warning: '⚠️'
-            };
-            
-            const alertDiv = document.createElement('div');
-            alertDiv.id = alertId;
-            alertDiv.className = `alert alert-${type}`;
-            alertDiv.innerHTML = `
-                <span style="font-size: 20px;">${iconMap[type]}</span>
-                <div>
-                    <div style="font-weight: 600;">${type.charAt(0).toUpperCase() + type.slice(1)}</div>
-                    <div>${message}</div>
-                </div>
-                <button onclick="hideAlert('${alertId}')" style="background: none; border: none; cursor: pointer; margin-left: auto; font-size: 16px; color: inherit;">
-                    ✕
-                </button>
-            `;
-            
-            container.appendChild(alertDiv);
-            container.classList.remove('hidden');
-            
-            if (duration > 0) {
-                setTimeout(() => hideAlert(alertId), duration);
-            }
-        }
-
-        function hideAlert(alertId) {
-            const alert = document.getElementById(alertId);
-            if (alert) {
-                alert.style.animation = 'slideOut 0.3s ease forwards';
-                setTimeout(() => {
-                    alert.remove();
-                    const container = document.getElementById('alertContainer');
-                    if (container.children.length === 0) {
-                        container.classList.add('hidden');
-                    }
-                }, 300);
-            }
-        }
-
-        // Enhanced patient queue management
-        function addPatient() {
-            const nameInput = document.getElementById('newPatientName');
-            const durationInput = document.getElementById('newPatientDuration');
-            
-            const name = nameInput.value.trim();
-            const duration = parseInt(durationInput.value);
-            
-            if (!name) {
-                showAlert('Please enter patient initials or identifier', 'warning');
-                nameInput.focus();
-                return;
-            }
-            
-            if (!duration || duration < 15 || duration > 120) {
-                showAlert('Duration must be between 15 and 120 minutes', 'warning');
-                durationInput.focus();
-                return;
-            }
-            
-            const existingPatient = state.patientQueue.find(p => 
-                p.name.toLowerCase() === name.toLowerCase()
-            );
-            
-            if (existingPatient) {
-                showAlert(`Patient "${name}" is already in the queue`, 'warning');
-                return;
-            }
-            
-            const newPatient = {
-                id: generatePatientId(),
-                name: name,
-                duration: duration
-            };
-            
-            state.patientQueue.push(newPatient);
-            
-            nameInput.value = '';
-            durationInput.value = '';
-            nameInput.focus();
-            
-            renderPatientQueue();
-            calculateSchedule();
-            
-            showAlert(`Patient "${name}" (${duration} min) added to queue`, 'success', 2000);
-        }
-
-        function addQuickPatient(duration) {
-            const patientNumber = state.patientQueue.length + state.appointments.length + 1;
-            const newPatient = {
-                id: generatePatientId(),
-                name: `P${patientNumber}`,
-                duration: duration
-            };
-            
-            state.patientQueue.push(newPatient);
-            renderPatientQueue();
-            calculateSchedule();
-            showAlert(`Patient "${newPatient.name}" (${duration} min) added to queue`, 'success', 2000);
-        }
-
-        function removePatient(id) {
-            const patient = state.patientQueue.find(p => p.id === id) || 
-                           state.appointments.find(a => a.id === id);
-            
-            if (patient) {
-                showConfirmation(
-                    'Remove Patient',
-                    `Are you sure you want to remove patient "${patient.name}" from the schedule?`,
-                    () => {
-                        state.patientQueue = state.patientQueue.filter(p => p.id !== id);
-                        state.appointments = state.appointments.filter(a => a.id !== id);
-                        renderPatientQueue();
-                        renderTimeline();
-                        calculateSchedule();
-                        showAlert(`Patient "${patient.name}" removed`, 'success', 2000);
-                    }
-                );
-            }
-        }
-
-        function renderPatientQueue() {
-            const container = document.getElementById('patientQueue');
-            const count = document.getElementById('queueCount');
-            count.textContent = state.patientQueue.length;
-
-            if (state.patientQueue.length === 0) {
-                container.innerHTML = `
-                    <div style="text-align: center; padding: 40px; color: #64748b;">
-                        <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;">📥</div>
-                        <p>No patients in queue</p>
-                        <p style="font-size: 12px;">Add patients using the form above</p>
-                    </div>
-                `;
-            } else {
-                container.innerHTML = state.patientQueue.map(p => `
-                    <div 
-                        class="patient-item ${getPatientColor(p.duration)}" 
-                        draggable="true"
-                        data-patient-id="${p.id}"
-                        ondragstart="handlePatientDragStart(event, '${p.id}')"
-                        ondragend="handlePatientDragEnd(event)"
-                    >
-                        <div class="patient-info">
-                            <div class="patient-name">${p.name}</div>
-                            <div class="patient-duration">${p.duration} minutes</div>
-                        </div>
-                        <div class="patient-actions">
-                            <button onclick="removePatient('${p.id}')" class="btn-small btn-danger" title="Remove patient">
-                                🗑️
-                            </button>
-                        </div>
-                    </div>
-                `).join('');
-            }
-        }
-
-        // Settings management
-        function adjustStartTime(minutes) {
-            const startTimeInput = document.getElementById('startTime');
-            const currentMinutes = timeStringToMinutes(startTimeInput.value);
-            const newMinutes = Math.max(0, Math.min(1440, currentMinutes + minutes));
-            const hours = Math.floor(newMinutes / 60);
-            const mins = newMinutes % 60;
-            startTimeInput.value = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
-            updateWorkDay();
-        }
-
-        function adjustWhatIfTime(minutes) {
-            const whatIfInput = document.getElementById('whatIfTime');
-            const currentMinutes = timeStringToMinutes(whatIfInput.value);
-            const newMinutes = Math.max(0, Math.min(1440, currentMinutes + minutes));
-            const hours = Math.floor(newMinutes / 60);
-            const mins = newMinutes % 60;
-            whatIfInput.value = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
-            calculateWhatIf();
-        }
-
-        function updateWorkDay() {
-            const startTime = document.getElementById('startTime').value;
-            if (!startTime) return;
-            
-            state.settings.workDay = { startTime };
-            calculateSchedule();
-        }
-
-        function updateSettings() {
-            const setupTime = parseInt(document.getElementById('setupTime').value) || 0;
-            const transitionTime = parseInt(document.getElementById('transitionTime').value) || 0;
-            const productivityTarget = parseInt(document.getElementById('productivityTarget').value) || 85;
-            
-            state.settings.setupTime = setupTime;
-            state.settings.transitionTime = transitionTime;
-            state.settings.productivityTarget = productivityTarget;
-            calculateSchedule();
-        }
-
-        function addBreak() {
-            const newBreak = {
-                id: Date.now(),
-                start: '12:00',
-                end: '12:30',
-                label: 'Break'
-            };
-            state.settings.breaks.push(newBreak);
-            renderBreaks();
-            calculateSchedule();
-        }
-
-        function removeBreak(id) {
-            const breakItem = state.settings.breaks.find(b => b.id === id);
-            if (breakItem) {
-                showConfirmation(
-                    'Remove Break',
-                    `Remove "${breakItem.label}" break?`,
-                    () => {
-                        state.settings.breaks = state.settings.breaks.filter(b => b.id !== id);
-                        renderBreaks();
-                        calculateSchedule();
-                        showAlert('Break removed', 'success', 2000);
-                    }
-                );
-            }
-        }
-
-        function updateBreak(id, field, value) {
-            const breakItem = state.settings.breaks.find(b => b.id === id);
-            if (breakItem) {
-                breakItem[field] = value;
-                calculateSchedule();
-            }
-        }
-
-        function renderBreaks() {
-            const container = document.getElementById('breaksContainer');
-            container.innerHTML = state.settings.breaks.map(br => `
-                <div class="form-row">
-                    <input 
-                        type="text" 
-                        value="${br.label}" 
-                        class="input"
-                        onchange="updateBreak(${br.id}, 'label', this.value)"
-                        placeholder="Break name"
-                        maxlength="20"
-                    >
-                    <div class="flex gap-2">
-                        <div class="time-input-container">
-                            <input 
-                                type="time" 
-                                value="${br.start}" 
-                                class="input"
-                                onchange="updateBreak(${br.id}, 'start', this.value)"
-                            >
-                        </div>
-                        <span style="color: #9ca3af;">to</span>
-                        <div class="time-input-container">
-                            <input 
-                                type="time" 
-                                value="${br.end}" 
-                                class="input"
-                                onchange="updateBreak(${br.id}, 'end', this.value)"
-                            >
-                        </div>
-                    </div>
-                    <button onclick="removeBreak(${br.id})" class="btn-small btn-danger">
-                        🗑️
-                    </button>
-                </div>
-            `).join('');
-        }
-
-        function addTask() {
-            const newTask = {
-                id: Date.now(),
-                start: '15:00',
-                end: '15:30',
-                label: 'Task',
-                type: 'non-billable'
-            };
-            state.settings.otherTasks.push(newTask);
-            renderTasks();
-            calculateSchedule();
-        }
-
-        function removeTask(id) {
-            const task = state.settings.otherTasks.find(t => t.id === id);
-            if (task) {
-                showConfirmation(
-                    'Remove Task',
-                    `Remove "${task.label}" task?`,
-                    () => {
-                        state.settings.otherTasks = state.settings.otherTasks.filter(t => t.id !== id);
-                        renderTasks();
-                        calculateSchedule();
-                        showAlert('Task removed', 'success', 2000);
-                    }
-                );
-            }
-        }
-
-        function updateTask(id, field, value) {
-            const task = state.settings.otherTasks.find(t => t.id === id);
-            if (task) {
-                task[field] = value;
-                calculateSchedule();
-            }
-        }
-
-        function renderTasks() {
-            const container = document.getElementById('tasksContainer');
-            container.innerHTML = state.settings.otherTasks.map(task => `
-                <div style="padding: 16px; background: rgba(17, 24, 39, 0.5); border-radius: 8px; border: 1px solid #374151; margin-bottom: 8px;">
-                    <div class="flex gap-2 items-center mb-2">
-                        <input 
-                            type="text" 
-                            value="${task.label}" 
-                            class="input"
-                            onchange="updateTask(${task.id}, 'label', this.value)"
-                            placeholder="Task name"
-                            maxlength="30"
-                        >
-                        <button onclick="removeTask(${task.id})" class="btn-small btn-danger">
-                            🗑️
-                        </button>
-                    </div>
-                    <div class="flex gap-2 items-center mb-2">
-                        <div class="time-input-container">
-                            <input 
-                                type="time" 
-                                value="${task.start}" 
-                                class="input"
-                                onchange="updateTask(${task.id}, 'start', this.value)"
-                            >
-                        </div>
-                        <span style="color: #9ca3af;">to</span>
-                        <div class="time-input-container">
-                            <input 
-                                type="time" 
-                                value="${task.end}" 
-                                class="input"
-                                onchange="updateTask(${task.id}, 'end', this.value)"
-                            >
-                        </div>
-                    </div>
-                    <select onchange="updateTask(${task.id}, 'type', this.value)" class="input">
-                        <option value="non-billable" ${task.type === 'non-billable' ? 'selected' : ''}>Non-Billable Time</option>
-                        <option value="billable" ${task.type === 'billable' ? 'selected' : ''}>Billable Time</option>
-                    </select>
-                </div>
-            `).join('');
-        }
-
-        // Productivity calculations
-        function calculateClockOutTime() {
-            if (!state.schedule) return null;
-
-            const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
-            
-            const completedBillableTime = state.appointments
-                .filter(a => a.completed)
-                .reduce((sum, apt) => sum + apt.duration, 0);
-
-            const remainingBillableTime = state.appointments
-                .filter(a => !a.completed)
-                .reduce((sum, apt) => sum + apt.duration, 0);
-
-            const billableTaskTime = state.settings.otherTasks
-                .filter(t => t.type === 'billable')
-                .reduce((sum, t) => sum + (timeStringToMinutes(t.end) - timeStringToMinutes(t.start)), 0);
-
-            const nonBillableTime = state.settings.breaks
-                .reduce((sum, br) => sum + (timeStringToMinutes(br.end) - timeStringToMinutes(br.start)), 0) +
-                state.settings.otherTasks
-                    .filter(t => t.type === 'non-billable')
-                    .reduce((sum, t) => sum + (timeStringToMinutes(t.end) - timeStringToMinutes(t.start)), 0);
-
-            const targetPercentage = state.settings.productivityTarget / 100;
-            const totalBillableTime = completedBillableTime + remainingBillableTime + billableTaskTime;
-            
-            let clockOutTime = null;
-            let currentProgress = 0;
-            
-            if (totalBillableTime > 0) {
-                currentProgress = completedBillableTime / totalBillableTime * 100;
-                
-                const minWorkTimeNeeded = (totalBillableTime / targetPercentage) + nonBillableTime + state.settings.setupTime;
-                clockOutTime = dayStartMins + minWorkTimeNeeded;
-            }
-
-            return {
-                clockOutTime: clockOutTime ? minutesToTime(clockOutTime) : null,
-                currentProgress: Math.round(currentProgress * 10) / 10,
-                completedBillableTime,
-                remainingBillableTime: remainingBillableTime + billableTaskTime,
-                totalBillableTime,
-                nonBillableTime
-            };
-        }
-
-        function calculateProductivityProjections() {
-            const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
-            const clockOutData = calculateClockOutTime();
-            if (!clockOutData) return [];
-            
-            const projections = [];
-            const clockOutMins = timeToMinutes24h(clockOutData.clockOutTime || '17:00PM');
-            const timeOffsets = [-60, -30, 0, 30];
-            
-            timeOffsets.forEach(offset => {
-                const projectedClockOut = clockOutMins + offset;
-                if (projectedClockOut > dayStartMins) {
-                    const totalWorkTime = projectedClockOut - dayStartMins;
-                    const productiveTime = totalWorkTime - clockOutData.nonBillableTime;
-                    
-                    let billableTimeAtClockOut = clockOutData.completedBillableTime;
-                    
-                    state.appointments
-                        .filter(a => !a.completed)
-                        .forEach(apt => {
-                            const aptEndTime = timeToMinutes24h(`${apt.end}${apt.endPeriod}`);
-                            if (aptEndTime <= projectedClockOut) {
-                                billableTimeAtClockOut += apt.duration;
-                            }
-                        });
-
-                    const productivity = productiveTime > 0 ? (billableTimeAtClockOut / productiveTime) * 100 : 0;
-                    
-                    projections.push({
-                        clockOutTime: minutesToTime(projectedClockOut),
-                        productivity: Math.round(productivity * 10) / 10,
-                        meetsTarget: productivity >= state.settings.productivityTarget,
-                        timeLabel: offset === -60 ? '1hr early' : 
-                                  offset === -30 ? '30min early' :
-                                  offset === 0 ? 'target time' : '30min overtime'
-                    });
-                }
-            });
-
-            return projections;
-        }
-
-        function renderClockOutCalculator() {
-            const clockOutData = calculateClockOutTime();
-            
-            if (!clockOutData || clockOutData.totalBillableTime === 0) {
-                document.getElementById('clockOutTime').textContent = '--:--';
-                document.getElementById('currentProgress').textContent = '--%';
-                document.getElementById('progressPercentage').textContent = '0%';
-                document.getElementById('progressFill').style.width = '0%';
-                document.getElementById('productivityProjections').innerHTML = '<p class="text-sm text-gray">Add appointments to calculate optimal clock-out time</p>';
-                return;
-            }
-
-            document.getElementById('clockOutTime').textContent = clockOutData.clockOutTime || '--:--';
-            document.getElementById('currentProgress').textContent = clockOutData.currentProgress + '%';
-            document.getElementById('progressPercentage').textContent = clockOutData.currentProgress + '%';
-            document.getElementById('progressFill').style.width = Math.min(clockOutData.currentProgress, 100) + '%';
-
-            const projections = calculateProductivityProjections();
-            const projectionsContainer = document.getElementById('productivityProjections');
-            projectionsContainer.innerHTML = `
-                <h4 class="font-semibold text-yellow mb-2">Clock-Out Scenarios:</h4>
-                ${projections.map(proj => `
-                    <div class="projection-item">
-                        <span>${proj.timeLabel}: ${proj.clockOutTime}</span>
-                        <span class="${proj.meetsTarget ? 'text-green' : 'text-red'}" style="font-weight: 600;">
-                            ${proj.productivity}% ${proj.meetsTarget ? '✅' : '❌'}
-                        </span>
-                    </div>
-                `).join('')}
-                <div style="font-size: 12px; color: #9ca3af; text-align: center; margin-top: 12px;">
-                    Target: ${state.settings.productivityTarget}% • 
-                    Completed: ${clockOutData.completedBillableTime}min • 
-                    Remaining: ${clockOutData.remainingBillableTime}min
-                </div>
-            `;
-        }
-
-        function calculateWhatIf() {
-            const whatIfTime = document.getElementById('whatIfTime').value;
-            const extraMinutes = parseInt(document.getElementById('extraMinutes').value) || 0;
-            
-            const clockOutData = calculateClockOutTime();
-            if (!clockOutData || clockOutData.totalBillableTime === 0) {
-                document.getElementById('whatIfProductivity').textContent = '0.0%';
-                document.getElementById('whatIfExtraProductivity').textContent = '0.0%';
-                return;
-            }
-            
-            const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
-            const whatIfEndMins = timeStringToMinutes(whatIfTime);
-            const totalWorkTime = whatIfEndMins - dayStartMins;
-            const productiveTime = Math.max(0, totalWorkTime - clockOutData.nonBillableTime);
-            
-            const productivity = productiveTime > 0 ? (clockOutData.totalBillableTime / productiveTime * 100) : 0;
-            const productivityWithExtra = productiveTime > 0 ? ((clockOutData.totalBillableTime + extraMinutes) / productiveTime * 100) : 0;
-            
-            document.getElementById('whatIfProductivity').textContent = productivity.toFixed(1) + '%';
-            document.getElementById('whatIfExtraProductivity').textContent = productivityWithExtra.toFixed(1) + '%';
-        }
-
-        // Drag and drop with better visual feedback
-        function handlePatientDragStart(event, patientId) {
-            const patient = state.patientQueue.find(p => p.id === patientId) || 
-                            state.appointments.find(a => a.id === patientId);
-            
-            if (patient) {
-                state.draggedPatient = patient;
-                event.target.classList.add('dragging');
-                
-                setTimeout(() => {
-                    document.querySelectorAll('.gap-item').forEach(gap => {
-                        const duration = parseInt(gap.textContent.match(/\d+/)?.[0] || '0');
-                        if (duration >= patient.duration) {
-                            gap.classList.add('valid-drop');
-                        }
-                    });
-                }, 0);
-            }
-        }
-
-        function handlePatientDragEnd(event) {
-            event.target.classList.remove('dragging');
-            
-            document.querySelectorAll('.gap-item').forEach(gap => {
-                gap.classList.remove('valid-drop');
-            });
-        }
-
-        function handleQueueDragOver(event) {
-            event.preventDefault();
-            event.dataTransfer.dropEffect = 'move';
-            event.currentTarget.classList.add('drag-over');
-        }
-
-        function handleQueueDrop(event) {
-            event.preventDefault();
-            event.currentTarget.classList.remove('drag-over');
-            
-            const patient = state.draggedPatient;
-            if (patient) {
-                state.appointments = state.appointments.filter(a => a.id !== patient.id);
-                if (!state.patientQueue.find(p => p.id === patient.id)) {
-                    state.patientQueue.push({ id: patient.id, name: patient.name, duration: patient.duration });
-                }
-                renderPatientQueue();
-                renderTimeline();
-                calculateSchedule();
-                showAlert(`${patient.name} moved back to queue`, 'success', 2000);
-            }
-            state.draggedPatient = null;
-        }
-
-        function handleTimelineDragOver(event) {
-            event.preventDefault();
-            event.dataTransfer.dropEffect = 'move';
-            document.getElementById('timeline').classList.add('drag-over');
-        }
-
-        function handleTimelineDragLeave(event) {
-            if (!event.currentTarget.contains(event.relatedTarget)) {
-                document.getElementById('timeline').classList.remove('drag-over');
-            }
-        }
-
-        function handleTimelineDrop(event) {
-            event.preventDefault();
-            document.getElementById('timeline').classList.remove('drag-over');
-            
-            const patient = state.draggedPatient;
-            if (patient) {
-                state.appointments = state.appointments.filter(a => a.id !== patient.id);
-                if (!state.patientQueue.find(p => p.id === patient.id)) {
-                    state.patientQueue.push({ id: patient.id, name: patient.name, duration: patient.duration });
-                }
-                renderPatientQueue();
-                renderTimeline();
-                calculateSchedule();
-            }
-            state.draggedPatient = null;
-        }
-
-        function handleGapDrop(event, gap) {
-            event.preventDefault();
-            event.stopPropagation();
-            
-            const patient = state.draggedPatient;
-            if (patient && gap.duration >= patient.duration) {
-                state.patientQueue = state.patientQueue.filter(p => p.id !== patient.id);
-                state.appointments = state.appointments.filter(a => a.id !== patient.id);
-
-                const startTime = minutesToTime(gap.start);
-                const endTime = minutesToTime(gap.start + patient.duration);
-                
-                state.appointments.push({
-                    id: patient.id,
-                    name: patient.name,
-                    duration: patient.duration,
-                    start: startTime.slice(0, -2),
-                    startPeriod: startTime.slice(-2),
-                    end: endTime.slice(0, -2),
-                    endPeriod: endTime.slice(-2),
-                    completed: false
-                });
-
-                state.appointments.sort((a, b) => 
-                    timeToMinutes24h(a.start + a.startPeriod) - timeToMinutes24h(b.start + b.startPeriod)
-                );
-
-                renderPatientQueue();
-                renderTimeline();
-                calculateSchedule();
-                showAlert(`${patient.name} scheduled at ${startTime}`, 'success', 2000);
-            } else if (patient) {
-                showAlert(`${patient.name} (${patient.duration} min) doesn't fit in this ${gap.duration} min slot`, 'warning');
-            }
-            state.draggedPatient = null;
-        }
-
-        // Determines available time slots based on fixed schedule items like breaks and tasks.
-        function getScheduleGaps() {
-            const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
-            const scheduledBlocks = [
-                ...state.settings.breaks.map(b => ({
-                    start: timeStringToMinutes(b.start),
-                    end: timeStringToMinutes(b.end)
-                })),
-                ...state.settings.otherTasks.map(t => ({
-                    start: timeStringToMinutes(t.start),
-                    end: timeStringToMinutes(t.end)
-                }))
-            ].sort((a, b) => a.start - b.start);
-
-            const gaps = [];
-            let lastEnd = dayStartMins + state.settings.setupTime;
-
-            scheduledBlocks.forEach(block => {
-                if (block.start > lastEnd) {
-                    gaps.push({ start: lastEnd, end: block.start });
-                }
-                lastEnd = Math.max(lastEnd, block.end);
-            });
-
-            const dayEndMins = dayStartMins + 12 * 60; // 12-hour workday limit
-            if (dayEndMins > lastEnd) {
-                gaps.push({ start: lastEnd, end: dayEndMins });
-            }
-
-            return gaps.map(g => ({...g, duration: g.end - g.start})).filter(g => g.duration > 0);
-        }
-
-        // Enhanced auto-scheduling with best-fit algorithm
-        function autoSchedule() {
-            const patientsToSchedule = [
-                ...state.patientQueue,
-                ...state.appointments.map(a => ({ id: a.id, name: a.name, duration: a.duration }))
-            ];
-
-            if (patientsToSchedule.length === 0) {
-                showAlert('No patients to schedule', 'warning');
-                return;
-            }
-            
-            const button = document.getElementById('autoScheduleBtn');
-            button.disabled = true;
-            button.innerHTML = '<div class="loading">Auto-scheduling...</div>';
-            
-            setTimeout(() => {
-                try {
-                    // 1. Sort all patients by duration, largest first
-                    patientsToSchedule.sort((a, b) => b.duration - a.duration);
-                    
-                    state.patientQueue = [];
-                    state.appointments = [];
-
-                    // 2. Get initial available gaps based on breaks/tasks
-                    let availableGaps = getScheduleGaps();
-                    let scheduledCount = 0;
-
-                    // 3. Place patients using a best-fit approach
-                    patientsToSchedule.forEach(patient => {
-                        // Find the smallest gap that fits the patient (best-fit)
-                        let bestGapIndex = -1;
-                        let minViableGapSize = Infinity;
-
-                        availableGaps.forEach((gap, index) => {
-                            if (gap.duration >= patient.duration && gap.duration < minViableGapSize) {
-                                minViableGapSize = gap.duration;
-                                bestGapIndex = index;
-                            }
-                        });
-
-                        if (bestGapIndex !== -1) {
-                            const gapToFill = availableGaps[bestGapIndex];
-
-                            // Place patient at the start of the chosen gap
-                            const startTime = minutesToTime(gapToFill.start);
-                            const endTime = minutesToTime(gapToFill.start + patient.duration);
-
-                            state.appointments.push({
-                                id: patient.id,
-                                name: patient.name,
-                                duration: patient.duration,
-                                start: startTime.slice(0, -2),
-                                startPeriod: startTime.slice(-2),
-                                end: endTime.slice(0, -2),
-                                endPeriod: endTime.slice(-2),
-                                completed: false
-                            });
-
-                            // Update the gap: reduce its size and move its start time
-                            const remainingDuration = gapToFill.duration - patient.duration - state.settings.transitionTime;
-
-                            if (remainingDuration >= 15) { // Minimum schedulable duration
-                                gapToFill.start += patient.duration + state.settings.transitionTime;
-                                gapToFill.duration = remainingDuration;
-                            } else {
-                                // Remove the gap if it's too small to be useful
-                                availableGaps.splice(bestGapIndex, 1);
-                            }
-                            scheduledCount++;
-                        } else {
-                            // If no suitable gap is found, return patient to the queue
-                            state.patientQueue.push(patient);
-                        }
-                    });
-
-                    // Sort final appointments by time for chronological rendering
-                    state.appointments.sort((a, b) =>
-                        timeToMinutes24h(a.start + a.startPeriod) - timeToMinutes24h(b.start + b.startPeriod)
-                    );
-
-                    renderPatientQueue();
-                    calculateSchedule(); // This will also render the timeline
-                    
-                    showAlert(`Auto-scheduling complete! ${scheduledCount} patients scheduled, ${state.patientQueue.length} remain in queue.`, 'success', 3000);
-                } catch (error) {
-                    console.error('Auto-scheduling error:', error);
-                    showAlert('Error during auto-scheduling. Please try again.', 'error');
-                }
-                
-                button.disabled = false;
-                button.innerHTML = '⚡ Auto-Schedule All Patients';
-            }, 100);
-        }
-
-        function toggleAppointmentComplete(appointmentId) {
-            const appointment = state.appointments.find(a => a.id === appointmentId);
-            if (appointment) {
-                appointment.completed = !appointment.completed;
-                renderTimeline();
-                calculateSchedule();
-                
-                const status = appointment.completed ? 'completed' : 'reopened';
-                showAlert(`${appointment.name}'s appointment ${status}`, 'success', 2000);
-            }
-        }
-
-        // Enhanced timeline rendering
-        function renderTimeline() {
-            const timeline = document.getElementById('timeline');
-            timeline.innerHTML = '';
-
-            const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
-            const totalDayDuration = 12 * 60; // 12 hours
-            
-            // Add time markers every 30 minutes
-            for (let i = 0; i <= 24; i++) {
-                const timeInMins = dayStartMins + (i * 30);
-                const top = ((timeInMins - dayStartMins) / totalDayDuration) * 100;
-                
-                if (top > 100) break;
-                
-                const marker = document.createElement('div');
-                marker.className = 'time-marker';
-                marker.style.top = `${top}%`;
-                
-                const label = document.createElement('span');
-                label.className = 'time-label';
-                label.textContent = minutesToTime(timeInMins);
-                marker.appendChild(label);
-                
-                timeline.appendChild(marker);
-            }
-
-            // Render schedule items
-            if (state.schedule) {
-                state.schedule.timelineItems.forEach(item => {
-                    if (item.startMins < dayStartMins || item.startMins > dayStartMins + totalDayDuration) return;
-                    
-                    const top = ((item.startMins - dayStartMins) / totalDayDuration) * 100;
-                    const height = Math.max(((item.endMins - item.startMins) / totalDayDuration) * 100, 1);
-
-                    const itemDiv = document.createElement('div');
-                    itemDiv.className = 'timeline-item';
-                    itemDiv.style.top = `${Math.max(0, Math.min(top, 100))}%`;
-                    itemDiv.style.height = `${Math.max(height, 2)}%`;
-
-                    let content = '';
-
-                    switch (item.type) {
-                        case 'appointment':
-                            const colorClass = getPatientColor(item.duration);
-                            content = `
-                                <div class="appointment-item ${colorClass} ${item.completed ? 'completed' : ''}" 
-                                     draggable="true" 
-                                     ondragstart="handlePatientDragStart(event, '${item.id}')"
-                                     ondragend="handlePatientDragEnd(event)">
-                                    <div class="text ${item.completed ? 'text' : ''}">
-                                        <strong>${item.name} (${item.duration}m)</strong><br>
-                                        <small>${minutesToTime(item.startMins)} - ${minutesToTime(item.endMins)}</small>
-                                    </div>
-                                    <button class="complete-btn" onclick="toggleAppointmentComplete('${item.id}')" title="Mark as ${item.completed ? 'incomplete' : 'complete'}">
-                                        ${item.completed ? '✅' : '⭕'}
-                                    </button>
-                                </div>
-                            `;
-                            break;
-                        case 'break':
-                            content = `
-                                <div class="break-item">
-                                    <strong>☕ ${item.label}</strong><br>
-                                    <small>${minutesToTime(item.startMins)} - ${minutesToTime(item.endMins)}</small>
-                                </div>
-                            `;
-                            break;
-                        case 'billable':
-                        case 'non-billable':
-                            content = `
-                                <div class="task-item">
-                                    <strong>💼 ${item.label}</strong><br>
-                                    <small>${minutesToTime(item.startMins)} - ${minutesToTime(item.endMins)} (${item.type})</small>
-                                </div>
-                            `;
-                            break;
-                        case 'gap':
-                            if (item.duration >= 15) {
-                                content = `
-                                    <div class="gap-item" 
-                                         ondrop="handleGapDrop(event, ${JSON.stringify(item).replace(/"/g, '&quot;')})" 
-                                         ondragover="handleTimelineDragOver(event)">
-                                        <div>
-                                            ➕<br>
-                                            <small>Available<br>${item.duration} min</small>
-                                        </div>
-                                    </div>
-                                `;
-                            }
-                            break;
-                    }
-
-                    if (content) {
-                        itemDiv.innerHTML = content;
-                        timeline.appendChild(itemDiv);
-                    }
-                });
-            }
-        }
-
-        // Enhanced schedule calculation
-        function calculateSchedule() {
-            const allScheduledItems = [
-                ...state.settings.breaks.map(b => ({ 
-                    ...b, 
-                    type: 'break', 
-                    startMins: timeStringToMinutes(b.start), 
-                    endMins: timeStringToMinutes(b.end) 
-                })),
-                ...state.settings.otherTasks.map(t => ({ 
-                    ...t, 
-                    type: t.type, 
-                    startMins: timeStringToMinutes(t.start), 
-                    endMins: timeStringToMinutes(t.end) 
-                })),
-                ...state.appointments.map(a => ({ 
-                    ...a, 
-                    type: 'appointment', 
-                    startMins: timeToMinutes24h(a.start + a.startPeriod), 
-                    endMins: timeToMinutes24h(a.end + a.endPeriod)
-                }))
+        };
+
+        const minutesTo24hTime = (totalMinutes) => {
+            if (isNaN(totalMinutes) || totalMinutes < 0) return '00:00';
+            const hours24 = Math.floor(totalMinutes / 60) % 24; // Use modulo 24 to wrap around midnight
+            const minutes = Math.round(totalMinutes % 60);
+            return `${hours24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        };
+
+        // --- CORE LOGIC ---
+        function calculateScheduleMetrics() {
+             const allScheduledItems = [
+                ...state.settings.breaks.map(b => ({ ...b, type: 'break', startMins: timeStringToMinutes(b.start), endMins: timeStringToMinutes(b.end) })),
+                ...state.settings.otherTasks.map(t => ({ ...t, type: t.type, startMins: timeStringToMinutes(t.start), endMins: timeStringToMinutes(t.end) })),
+                ...state.appointments.map(a => ({ ...a, type: 'appointment', startMins: timeToMinutes(a.start, a.startPeriod), endMins: timeToMinutes(a.end, a.endPeriod) + (a.type === 'appointment' ? state.settings.transitionTime : 0) }))
             ].sort((a, b) => a.startMins - b.startMins);
 
             const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
-
-            // Calculate gaps
-            const gaps = [];
+            
             let lastEnd = dayStartMins + state.settings.setupTime;
-
             allScheduledItems.forEach(item => {
-                if (item.startMins > lastEnd) {
-                    const gapDuration = item.startMins - lastEnd;
-                    gaps.push({ 
-                        start: lastEnd, 
-                        end: item.startMins, 
-                        duration: gapDuration, 
-                        type: 'gap',
-                        startMins: lastEnd,
-                        endMins: item.startMins
-                    });
-                }
                 lastEnd = Math.max(lastEnd, item.endMins);
             });
 
-            // Final gap at end of day (up to 12 hours)
-            const dayEndMins = dayStartMins + 12 * 60;
-            if (dayEndMins > lastEnd) {
-                const gapDuration = dayEndMins - lastEnd;
-                gaps.push({ 
-                    start: lastEnd, 
-                    end: dayEndMins, 
-                    duration: gapDuration, 
-                    type: 'gap',
-                    startMins: lastEnd,
-                    endMins: dayEndMins
-                });
-            }
+            // Calculate Gaps between items
+            const gaps = [];
+            let lastGapCheck = dayStartMins + state.settings.setupTime;
+            allScheduledItems.forEach(item => {
+                if (item.startMins > lastGapCheck) {
+                    gaps.push({ id: `gap-${lastGapCheck}`, start: lastGapCheck, end: item.startMins, duration: item.startMins - lastGapCheck, type: 'gap' });
+                }
+                lastGapCheck = Math.max(lastGapCheck, item.endMins);
+            });
 
-            // Enhanced productivity calculations
+            // Productivity Calculations
             const totalTreatmentTime = state.appointments.reduce((sum, apt) => sum + apt.duration, 0);
-            const completedTreatmentTime = state.appointments.filter(a => a.completed).reduce((sum, apt) => sum + apt.duration, 0);
-            const billableTaskTime = state.settings.otherTasks
-                .filter(t => t.type === 'billable')
-                .reduce((sum, t) => sum + (timeStringToMinutes(t.end) - timeStringToMinutes(t.start)), 0);
-            const nonBillableTaskTime = state.settings.otherTasks
-                .filter(t => t.type === 'non-billable')
-                .reduce((sum, t) => sum + (timeStringToMinutes(t.end) - timeStringToMinutes(t.start)), 0);
-            const totalBreakTime = state.settings.breaks
-                .reduce((sum, br) => sum + (timeStringToMinutes(br.end) - timeStringToMinutes(br.start)), 0);
-
+            const billableTaskTime = state.settings.otherTasks.filter(t => t.type === 'billable').reduce((sum, t) => sum + (timeStringToMinutes(t.end) - timeStringToMinutes(t.start)), 0);
+            const nonBillableTaskTime = state.settings.otherTasks.filter(t => t.type === 'non-billable').reduce((sum, t) => sum + (timeStringToMinutes(t.end) - timeStringToMinutes(t.start)), 0);
+            const totalBreakTime = state.settings.breaks.reduce((sum, br) => sum + (timeStringToMinutes(br.end) - timeStringToMinutes(br.start)), 0);
+            
             const totalBillableTime = totalTreatmentTime + billableTaskTime;
-            const totalWorkTime = lastEnd - dayStartMins;
             const timeUnavailable = totalBreakTime + nonBillableTaskTime;
-            const totalProductiveTimePossible = totalWorkTime - timeUnavailable;
-            const productivity = totalProductiveTimePossible > 0 ? ((totalBillableTime / totalProductiveTimePossible) * 100) : 0;
-
-            // Generate enhanced suggestions with clock-out analysis
+            
+            // --- Actionable Suggestions & Projections ---
             const suggestions = [];
-            const clockOutData = calculateClockOutTime();
-            
-            if (clockOutData && clockOutData.clockOutTime) {
-                const clockOutMins = timeToMinutes24h(clockOutData.clockOutTime);
-                const currentEndMins = lastEnd;
-                
-                if (clockOutMins < currentEndMins) {
-                    const timeSaved = currentEndMins - clockOutMins;
-                    suggestions.push(`✨ You can clock out at <strong>${clockOutData.clockOutTime}</strong> and still meet your ${state.settings.productivityTarget}% target - saving ${Math.floor(timeSaved / 60)}h ${timeSaved % 60}m!`);
-                } else if (clockOutMins > currentEndMins) {
-                    const overtime = clockOutMins - currentEndMins;
-                    suggestions.push(`⏰ To meet your ${state.settings.productivityTarget}% target, you'd need to work until <strong>${clockOutData.clockOutTime}</strong> (${Math.floor(overtime / 60)}h ${overtime % 60}m overtime).`);
-                } else {
-                    suggestions.push(`🎯 Perfect! Your current schedule meets your ${state.settings.productivityTarget}% productivity target exactly.`);
+            let projectedClockOutMins = 0;
+            let productivity = 0;
+
+            if (state.settings.productivityTarget > 0 && totalBillableTime > 0) {
+                const requiredTotalWorkTime = (totalBillableTime / (state.settings.productivityTarget / 100));
+                projectedClockOutMins = dayStartMins + requiredTotalWorkTime + timeUnavailable;
+                suggestions.push(`To meet your <b>${state.settings.productivityTarget}% target</b>, you should clock out around <b>${minutesToTime(projectedClockOutMins)}</b>.`);
+
+                const totalWorkTime = lastEnd - dayStartMins;
+                const totalProductiveTimePossible = totalWorkTime - timeUnavailable;
+                if (totalProductiveTimePossible > 0) {
+                     productivity = ((totalBillableTime / totalProductiveTimePossible) * 100).toFixed(1);
                 }
-            }
-            
-            if (state.patientQueue.length > 0) {
-                const unscheduledTime = state.patientQueue.reduce((sum, p) => sum + p.duration, 0);
-                const availableGapTime = gaps.filter(g => g.duration >= 15).reduce((sum, g) => sum + g.duration, 0);
-                
-                if (availableGapTime >= unscheduledTime) {
-                    suggestions.push(`📅 Good news! You have ${Math.floor(availableGapTime / 60)}h ${availableGapTime % 60}m of available time to fit your ${state.patientQueue.length} unscheduled patients.`);
-                } else {
-                    suggestions.push(`⚠️ You have ${state.patientQueue.length} unscheduled patients (${unscheduledTime} min total) but only ${Math.floor(availableGapTime / 60)}h ${availableGapTime % 60}m available time.`);
-                }
-            }
-            
-            if (productivity < state.settings.productivityTarget) {
-                const minutesNeeded = Math.ceil((state.settings.productivityTarget / 100 * totalProductiveTimePossible) - totalBillableTime);
-                if (minutesNeeded > 0) {
-                    suggestions.push(`📈 To reach your ${state.settings.productivityTarget}% target, schedule ${minutesNeeded} more billable minutes.`);
-                }
+
             } else {
-                suggestions.push(`🎯 Excellent! You're at ${productivity.toFixed(1)}% productivity, exceeding your ${state.settings.productivityTarget}% target.`);
+                 suggestions.push(`Add a billable session to calculate your productivity and target clock-out time.`);
             }
 
-            const completionRate = state.appointments.length > 0 ? (state.appointments.filter(a => a.completed).length / state.appointments.length * 100) : 0;
-            if (state.appointments.length > 0) {
-                suggestions.push(`📊 Progress: ${state.appointments.filter(a => a.completed).length}/${state.appointments.length} appointments completed (${completionRate.toFixed(1)}%).`);
+            if (state.patientQueue.length > 0 && gaps.length > 0) {
+                const smallestPatientDuration = Math.min(...state.patientQueue.map(p => p.duration));
+                const suitableGap = gaps.find(g => g.duration >= smallestPatientDuration);
+
+                if (suitableGap) {
+                    suggestions.push(`You have a <b>${suitableGap.duration} min gap</b> at ${minutesToTime(suitableGap.start)} large enough for a queued session.`);
+                }
+            }
+            
+            const LATE_THRESHOLD_MINS = 19 * 60; // 7:00 PM
+            if (lastEnd > LATE_THRESHOLD_MINS) {
+                suggestions.push(`<b>Warning:</b> Your current schedule ends at <b>${minutesToTime(lastEnd)}</b>. Consider moving sessions to an earlier day if possible.`);
             }
 
             state.schedule = {
-                timelineItems: [...allScheduledItems, ...gaps].sort((a, b) => a.startMins - b.startMins),
+                timelineItems: [...allScheduledItems, ...gaps.map(g => ({...g, startMins: g.start, endMins: g.end }))].sort((a,b) => a.startMins - b.startMins),
                 totalBillableTime,
-                totalTreatmentTime,
-                completedTreatmentTime,
-                totalProductiveTimePossible,
-                productivity: Math.round(productivity * 10) / 10,
-                meetsTarget: productivity >= state.settings.productivityTarget,
+                timeUnavailable,
+                projectedClockOutMins,
+                productivity,
+                meetsTarget: projectedClockOutMins > 0 && lastEnd <= projectedClockOutMins,
                 suggestions,
-                completionRate: Math.round(completionRate * 10) / 10
+                lastEndMins: lastEnd,
+                gaps
             };
 
-            renderClockOutCalculator();
-            renderSummary();
-            renderTimeline();
-            calculateWhatIf();
+            // Update productivity calculator end time if needed
+            if (projectedClockOutMins > 0) {
+                 const projectedTime = minutesToTime(projectedClockOutMins);
+                 state.productivityCalculator.endTime = minutesTo24hTime(timeToMinutes(projectedTime.slice(0,-2), projectedTime.slice(-2)))
+            }
         }
 
-        function renderSummary() {
-            if (!state.schedule) {
-                document.getElementById('summaryCard').classList.add('hidden');
-                return;
-            }
+        // --- RENDER FUNCTIONS ---
+        const root = document.getElementById('app-root');
 
-            document.getElementById('summaryCard').classList.remove('hidden');
+        function render() {
+            calculateScheduleMetrics(); // Recalculate everything before rendering
 
-            const summaryGrid = document.getElementById('summaryGrid');
-            summaryGrid.innerHTML = `
-                <div class="summary-card">
-                    <div class="summary-value ${state.schedule.meetsTarget ? 'text-green' : 'text-red'}">
-                        ${state.schedule.productivity}%
+            const { settings, appointments, patientQueue, schedule, notification, isClearModalOpen, isEditModalOpen, editingAppointment } = state;
+
+            // Main App Structure
+            root.innerHTML = `
+                <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 bg-gray-900 text-gray-300 min-h-screen font-sans printable-area">
+                    <div id="notification-container"></div>
+                    <div id="modal-container"></div>
+
+                    <div class="no-print">
+                        <div class="bg-gray-800 rounded-lg shadow-lg p-4 sm:p-6 mb-6 border border-gray-700">
+                            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+                                <div>
+                                    <h1 class="text-2xl sm:text-3xl font-bold text-gray-100 mb-2 flex items-center gap-2">
+                                        <span class="text-yellow-400">${getIcon('Calendar', 28)}</span>
+                                        Interactive Therapy Scheduler
+                                    </h1>
+                                    <p class="text-gray-400">Add patients to the queue, then drag them to the timeline or use the optimizer.</p>
+                                </div>
+                                <div class="flex flex-col sm:flex-row gap-2 shrink-0 w-full sm:w-auto">
+                                    <button id="save-settings-btn" class="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 bg-yellow-500 text-gray-900 font-semibold rounded-lg hover:bg-yellow-400">${getIcon('Save')}Save</button>
+                                    <button id="print-btn" class="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 bg-gray-600 text-gray-200 rounded-lg hover:bg-gray-500">${getIcon('Printer')}Print</button>
+                                    <button id="clear-day-btn" class="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 bg-red-800/80 text-red-200 rounded-lg hover:bg-red-700/80">${getIcon('Trash2')}Clear Day</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="summary-label">Productivity</div>
-                </div>
-                <div class="summary-card">
-                    <div class="summary-value text-blue">
-                        ${Math.floor(state.schedule.totalBillableTime / 60)}:${(state.schedule.totalBillableTime % 60).toString().padStart(2, '0')}
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-1 space-y-6 no-print">
+                            <div id="patient-queue-container"></div>
+                            <div id="settings-panel-container"></div>
+                        </div>
+                        <div class="lg:col-span-2 space-y-6">
+                            <div id="day-summary-container"></div>
+                            <div id="schedule-timeline-container"></div>
+                        </div>
                     </div>
-                    <div class="summary-label">Billable Time</div>
-                </div>
-                <div class="summary-card">
-                    <div class="summary-value text-purple">
-                        ${state.appointments.length}
-                    </div>
-                    <div class="summary-label">Scheduled</div>
-                </div>
-                <div class="summary-card">
-                    <div class="summary-value ${state.patientQueue.length > 0 ? 'text-red' : 'text-green'}">
-                        ${state.patientQueue.length}
-                    </div>
-                    <div class="summary-label">Unscheduled</div>
                 </div>
             `;
-
-            const insightsContainer = document.getElementById('insightsContainer');
-            insightsContainer.innerHTML = `
-                <div class="insights-box">
-                    <div class="insights-title">
-                        🧠 Smart Insights
-                    </div>
-                    ${state.schedule.suggestions.map(s => `<div class="insights-text">${s}</div>`).join('')}
-                </div>
-            `;
-        }
-
-        // Confirmation system
-        function showConfirmation(title, message, callback, buttonText = 'Delete') {
-            state.confirmCallback = callback;
-            document.getElementById('confirmTitle').textContent = title;
-            document.getElementById('confirmMessage').textContent = message;
-            document.getElementById('confirmBtn').textContent = buttonText;
-            document.getElementById('confirmationModal').classList.remove('hidden');
-        }
-
-        function hideConfirmation() {
-            document.getElementById('confirmationModal').classList.add('hidden');
-            state.confirmCallback = null;
-        }
-
-        function confirmAction() {
-            if (state.confirmCallback) {
-                state.confirmCallback();
-            }
-            hideConfirmation();
-        }
-
-        // Enhanced storage functions
-        function saveSettings() {
-            const saveBtn = document.getElementById('saveBtn');
-            saveBtn.disabled = true;
-            saveBtn.innerHTML = '<div class="loading">Saving...</div>';
             
+            // Render child "components"
+            renderNotification(notification);
+            renderModals(isClearModalOpen, isEditModalOpen, editingAppointment);
+            renderPatientQueue(patientQueue);
+            renderSettingsPanel(settings);
+            renderDaySummary(schedule, appointments, patientQueue, settings);
+            renderScheduleTimeline(schedule, settings);
+            
+            // Add event listeners
+            addEventListeners();
+        }
+
+        // --- EVENT HANDLERS & LOGIC ---
+        function setNotification(message, type) {
+            state.notification = { message, type };
+            renderNotification(state.notification);
+            setTimeout(() => {
+                if (state.notification.message === message) {
+                    state.notification = { message: '', type: '' };
+                    renderNotification(state.notification);
+                }
+            }, 5000);
+        }
+
+        function handleSaveSettings() {
+             try {
+                const settingsToSave = {...state.settings};
+                delete settingsToSave.workDay.startPeriod; // Clean up old properties if they exist
+                localStorage.setItem('therapySchedulerSettings', JSON.stringify(settingsToSave));
+                localStorage.setItem('therapySchedulerAppointments', JSON.stringify(state.appointments));
+                localStorage.setItem('therapySchedulerQueue', JSON.stringify(state.patientQueue));
+                setNotification('Settings and schedule saved!', 'success');
+            } catch (e) {
+                console.error("Failed to save settings to localStorage", e);
+                setNotification("Could not save settings. Storage might be full.", 'error');
+            }
+        }
+
+        function handleClearDay() {
+            state.appointments = [];
+            state.patientQueue = [];
+            state.patientCounter = 1;
             try {
-                const dataToSave = {
-                    settings: state.settings,
-                    patientQueue: state.patientQueue,
-                    appointments: state.appointments,
-                    timestamp: new Date().toISOString()
+                localStorage.setItem('therapySchedulerAppointments', JSON.stringify([]));
+                localStorage.setItem('therapySchedulerQueue', JSON.stringify([]));
+                setNotification('Your schedule has been cleared.', 'success');
+            } catch (e) {
+                console.error("Failed to clear schedule in localStorage", e);
+                setNotification("Could not clear schedule data.", 'error');
+            }
+            state.isClearModalOpen = false;
+            render();
+        }
+
+        function addPatientToQueue(duration) {
+            if (duration < MINIMUM_SCHEDULABLE_DURATION) {
+                setNotification(`Duration must be at least ${MINIMUM_SCHEDULABLE_DURATION} minutes.`, 'error');
+            } else {
+                const newPatient = {
+                    id: `p${Date.now()}`,
+                    name: `P${state.patientCounter}`,
+                    duration
                 };
-                
-                const serialized = JSON.stringify(dataToSave);
-                
-                if (serialized.length > 5000000) {
-                    throw new Error('Data too large for browser storage');
+                state.patientCounter += 1;
+                state.patientQueue.push(newPatient);
+                setNotification(`Patient ${newPatient.name} added to queue.`, 'success');
+            }
+            render();
+        }
+
+        function removePatientFromQueue(id) {
+            state.patientQueue = state.patientQueue.filter(p => p.id !== id);
+            render();
+        }
+
+        function removeAppointmentFromSchedule(appointmentId) {
+            const appointmentToRemove = state.appointments.find(a => a.id === appointmentId);
+            if (!appointmentToRemove) return;
+
+            state.appointments = state.appointments.filter(a => a.id !== appointmentId);
+
+            if (!state.patientQueue.find(p => p.id === appointmentId)) {
+                state.patientQueue.push({ id: appointmentToRemove.id, name: appointmentToRemove.name, duration: appointmentToRemove.duration });
+            }
+            render();
+        }
+
+        function toggleAppointmentComplete(appointmentId) {
+            state.appointments = state.appointments.map(apt => apt.id === appointmentId ? { ...apt, completed: !apt.completed } : apt);
+            render();
+        }
+
+        function handleUpdateAppointmentDuration(appointmentId, newDuration) {
+            state.appointments = state.appointments.map(apt => {
+                if (apt.id === appointmentId) {
+                    const startMins = timeToMinutes(apt.start, apt.startPeriod);
+                    const newEndTime = minutesToTime(startMins + newDuration);
+                    return {
+                        ...apt,
+                        duration: newDuration,
+                        end: newEndTime.slice(0, -2),
+                        endPeriod: newEndTime.slice(-2)
+                    };
                 }
+                return apt;
+            });
+            setNotification('Session duration updated!', 'success');
+            state.isEditModalOpen = false;
+            render();
+        }
+
+        function autoSchedule() {
+            const patientsToSchedule = [
+                ...state.patientQueue,
+                ...state.appointments.filter(a => !a.completed).map(a => ({ id: a.id, name: a.name, duration: a.duration }))
+            ].sort((a, b) => b.duration - a.duration); // Sort longest to shortest
+
+            let currentAppointments = state.appointments.filter(a => a.completed);
+
+            patientsToSchedule.forEach(patient => {
+                const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
                 
-                localStorage.setItem('enhancedTherapyScheduler', serialized);
-                showAlert('Settings and schedule saved successfully!', 'success', 3000);
-            } catch (error) {
-                console.error('Save error:', error);
-                if (error.name === 'QuotaExceededError') {
-                    showAlert('Storage is full. Please clear some browser data and try again.', 'error');
-                } else {
-                    showAlert('Unable to save settings. Please try again.', 'error');
+                const fixedEvents = [
+                    ...state.settings.breaks.map(b => ({ start: timeStringToMinutes(b.start), end: timeStringToMinutes(b.end) })),
+                    ...state.settings.otherTasks.map(t => ({ start: timeStringToMinutes(t.start), end: timeStringToMinutes(t.end) })),
+                    ...currentAppointments.map(a => ({ start: timeToMinutes(a.start, a.startPeriod), end: timeToMinutes(a.end, a.endPeriod) + state.settings.transitionTime }))
+                ].sort((a,b) => a.start - b.start);
+
+                const gaps = [];
+                let lastGapCheck = dayStartMins + state.settings.setupTime;
+                fixedEvents.forEach(item => {
+                    if (item.start > lastGapCheck) {
+                        gaps.push({ start: lastGapCheck, end: item.start, duration: item.start - lastGapCheck });
+                    }
+                    lastGapCheck = Math.max(lastGapCheck, item.end);
+                });
+                gaps.push({ start: lastGapCheck, end: Infinity, duration: Infinity });
+
+                let bestFitGap = null;
+                for (const gap of gaps) {
+                    const requiredTime = patient.duration + state.settings.transitionTime;
+                    if (gap.duration >= requiredTime) {
+                        if (!bestFitGap || gap.duration < bestFitGap.duration) {
+                            bestFitGap = gap;
+                        }
+                    }
                 }
+
+                if (bestFitGap) {
+                    const placementTime = bestFitGap.start;
+                    const startTime = minutesToTime(placementTime);
+                    const endTime = minutesToTime(placementTime + patient.duration);
+                    const newAppointment = {
+                        ...patient,
+                        start: startTime.slice(0, -2), startPeriod: startTime.slice(-2),
+                        end: endTime.slice(0, -2), endPeriod: endTime.slice(-2),
+                        completed: false // Ensures re-optimized appointments are not marked complete
+                    };
+                    currentAppointments.push(newAppointment);
+                }
+            });
+
+            state.appointments = currentAppointments.sort((a,b) => timeToMinutes(a.start, a.startPeriod) - timeToMinutes(b.start, b.startPeriod));
+            state.patientQueue = [];
+            setNotification('Schedule has been optimized!', 'success');
+            render();
+        }
+
+        function handleAdjustTime(timeId, minutesToAdd) {
+            const parts = timeId.split('.');
+            let currentValue;
+            
+            if (parts.length === 2 && parts[0] === 'workDay') {
+                currentValue = state.settings.workDay.startTime;
+            } else if (parts.length === 3) {
+                const [list, itemId, field] = parts;
+                const item = state.settings[list].find(item => item.id == itemId);
+                if (item) currentValue = item[field];
+            } else if(parts[0] === 'productivity') {
+                currentValue = state.productivityCalculator.endTime;
             }
             
-            saveBtn.disabled = false;
-            saveBtn.innerHTML = '💾 Save Settings';
-        }
+            if (!currentValue) return;
 
-        function loadSettings() {
-            try {
-                const savedData = localStorage.getItem('enhancedTherapyScheduler');
-                
-                if (savedData) {
-                    const parsed = JSON.parse(savedData);
-                    
-                    if (parsed.settings) {
-                        state.settings = { ...state.settings, ...parsed.settings };
-                    }
-                    if (parsed.patientQueue) {
-                        state.patientQueue = parsed.patientQueue;
-                    }
-                    if (parsed.appointments) {
-                        state.appointments = parsed.appointments;
-                    }
-                    
-                    if (parsed.timestamp) {
-                        const savedDate = new Date(parsed.timestamp);
-                        showAlert(`Settings loaded from ${savedDate.toLocaleDateString()} ${savedDate.toLocaleTimeString()}`, 'success', 3000);
-                    }
-                }
-            } catch (error) {
-                console.error('Load error:', error);
-                showAlert('Error loading saved settings. Starting with defaults.', 'warning');
+            let currentMinutes = timeStringToMinutes(currentValue);
+            let newMinutes = currentMinutes + minutesToAdd;
+
+            // Wrap around 24 hours (1440 minutes)
+            if (newMinutes < 0) {
+                newMinutes += 1440;
             }
+            newMinutes %= 1440;
+            
+            const newTime = minutesTo24hTime(newMinutes);
+
+            // Update the state based on the timeId
+            if (parts.length === 2 && parts[0] === 'workDay') {
+                state.settings.workDay.startTime = newTime;
+            } else if (parts.length === 3) {
+                const [list, itemId, field] = parts;
+                state.settings[list] = state.settings[list].map(item =>
+                    item.id == itemId ? { ...item, [field]: newTime } : item
+                );
+            } else if(parts[0] === 'productivity') {
+                state.productivityCalculator.endTime = newTime;
+            }
+
+            render();
         }
 
-        // Enhanced initialization
         function init() {
             try {
-                loadSettings();
-                
-                // Set form values from state
-                document.getElementById('startTime').value = state.settings.workDay.startTime;
-                document.getElementById('setupTime').value = state.settings.setupTime;
-                document.getElementById('transitionTime').value = state.settings.transitionTime;
-                document.getElementById('productivityTarget').value = state.settings.productivityTarget;
+                let maxId = 0;
+                const savedSettings = localStorage.getItem('therapySchedulerSettings');
+                if (savedSettings) {
+                    const parsedSettings = JSON.parse(savedSettings);
+                    // Backwards compatibility for old AM/PM format
+                    if (parsedSettings.workDay.startPeriod) {
+                        const { startTime, startPeriod } = parsedSettings.workDay;
+                        parsedSettings.workDay = { startTime: minutesTo24hTime(timeToMinutes(startTime, startPeriod)) };
 
-                renderPatientQueue();
-                renderBreaks();
-                renderTasks();
-                calculateSchedule();
-                
-                // Focus on patient name input for better UX
-                document.getElementById('newPatientName').focus();
-                
-            } catch (error) {
-                console.error('Initialization error:', error);
-                showAlert('There was an issue initializing the scheduler. Please refresh the page.', 'error');
+                        parsedSettings.breaks = parsedSettings.breaks.map(b => ({
+                            ...b,
+                            start: minutesTo24hTime(timeToMinutes(b.start, b.startPeriod)),
+                            end: minutesTo24hTime(timeToMinutes(b.end, b.endPeriod))
+                        }));
+                        delete parsedSettings.breaks.startPeriod;
+                        delete parsedSettings.breaks.endPeriod;
+
+                        parsedSettings.otherTasks = parsedSettings.otherTasks.map(t => ({
+                            ...t,
+                            start: minutesTo24hTime(timeToMinutes(t.start, t.startPeriod)),
+                            end: minutesTo24hTime(timeToMinutes(t.end, t.endPeriod))
+                        }));
+                        delete parsedSettings.otherTasks.startPeriod;
+                        delete parsedSettings.otherTasks.endPeriod;
+                    }
+                    state.settings = parsedSettings;
+                }
+
+                const savedAppointments = localStorage.getItem('therapySchedulerAppointments');
+                if (savedAppointments) {
+                     const parsed = JSON.parse(savedAppointments);
+                     state.appointments = parsed;
+                     parsed.forEach(a => {
+                        const num = parseInt(a.name?.replace('P', ''), 10);
+                        if (!isNaN(num) && num > maxId) maxId = num;
+                    });
+                }
+                const savedQueue = localStorage.getItem('therapySchedulerQueue');
+                if (savedQueue) {
+                    const parsed = JSON.parse(savedQueue);
+                    state.patientQueue = parsed;
+                    parsed.forEach(p => {
+                        const num = parseInt(p.name?.replace('P', ''), 10);
+                        if (!isNaN(num) && num > maxId) maxId = num;
+                    });
+                }
+                state.patientCounter = maxId + 1;
+
+            } catch(e) {
+                console.error("Failed to load from localStorage", e);
+                setNotification("Could not load saved settings.", 'error');
             }
+            render();
         }
 
-        // Add keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            if (e.ctrlKey || e.metaKey) {
-                switch (e.key) {
-                    case 's':
-                        e.preventDefault();
-                        saveSettings();
-                        break;
-                    case 'p':
-                        e.preventDefault();
-                        window.print();
-                        break;
+        function renderNotification(notification) {
+            const container = document.getElementById('notification-container');
+            if (!notification.message) {
+                container.innerHTML = '';
+                return;
+            }
+             const typeClasses = {
+                success: "bg-gray-800 border-green-500 text-green-300",
+                error: "bg-gray-800 border-red-500 text-red-300",
+            };
+            const Icon = notification.type === 'success' ? getIcon('CheckCircle', 20) : getIcon('AlertCircle', 20);
+
+            container.innerHTML = `
+                <div class="fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg animate-fade-in-down border ${typeClasses[notification.type]}">
+                    ${Icon}
+                    <span>${notification.message}</span>
+                    <button id="dismiss-notification-btn" class="ml-4 p-1 rounded-full hover:bg-white/10">${getIcon('X', 16)}</button>
+                </div>
+            `;
+        }
+
+        function renderModals(isClearModalOpen, isEditModalOpen, appointment) {
+             const container = document.getElementById('modal-container');
+             container.innerHTML = '';
+
+             if (isClearModalOpen) {
+                 container.innerHTML = `
+                    <div class="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4">
+                        <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-6 w-full max-w-md animate-fade-in-down">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-xl font-bold text-yellow-400">Confirm Clear Day</h2>
+                                <button id="close-clear-modal-btn" class="p-1 rounded-full text-gray-400 hover:bg-gray-700">${getIcon('X', 20)}</button>
+                            </div>
+                            <div class="text-gray-300 mb-6">Are you sure you want to clear all scheduled appointments and the patient queue? This action cannot be undone.</div>
+                            <div class="flex justify-end gap-3">
+                                <button id="cancel-clear-btn" class="px-4 py-2 bg-gray-600 text-gray-200 rounded-lg hover:bg-gray-500">Cancel</button>
+                                <button id="confirm-clear-btn" class="px-4 py-2 bg-red-800/80 text-red-200 rounded-lg hover:bg-red-700/80">Confirm</button>
+                            </div>
+                        </div>
+                    </div>
+                 `;
+             }
+
+             if (isEditModalOpen && appointment) {
+                  container.innerHTML = `
+                    <div class="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4">
+                        <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-6 w-full max-w-md animate-fade-in-down">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-xl font-bold text-yellow-400">Edit Session: ${appointment.name}</h2>
+                                <button id="close-edit-modal-btn" class="p-1 rounded-full text-gray-400 hover:bg-gray-700">${getIcon('X', 20)}</button>
+                            </div>
+                            <div class="mb-6 space-y-2">
+                                <label for="duration-input" class="block text-sm font-medium text-gray-300">Adjust session duration (in minutes):</label>
+                                <input id="edit-duration-input" type="number" value="${appointment.duration}" class="w-full px-3 py-2 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-yellow-500 focus:border-yellow-500" />
+                            </div>
+                            <div class="flex justify-end gap-3">
+                                <button id="cancel-edit-btn" class="px-4 py-2 bg-gray-600 text-gray-200 rounded-lg hover:bg-gray-500">Cancel</button>
+                                <button id="save-edit-btn" class="px-4 py-2 bg-yellow-500 text-gray-900 font-semibold rounded-lg hover:bg-yellow-400">Save Changes</button>
+                            </div>
+                        </div>
+                    </div>
+                  `;
+             }
+        }
+
+        function renderPatientQueue(queue) {
+            const container = document.getElementById('patient-queue-container');
+            container.innerHTML = `
+                <div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
+                    <h2 class="text-xl font-semibold text-gray-200 mb-4 flex items-center gap-2"><span class="text-yellow-400">${getIcon('Clock', 20)}</span>Patient Queue (${queue.length})</h2>
+                    <div class="flex gap-2 mb-2">
+                        <input id="patient-duration-input" type="number" placeholder="Duration (min)" class="w-full px-3 py-2 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-yellow-500 focus:border-yellow-500" min="${MINIMUM_SCHEDULABLE_DURATION}" />
+                        <button id="add-patient-btn" class="px-4 py-2 bg-yellow-500 text-gray-900 font-semibold rounded-lg hover:bg-yellow-400 shrink-0">${getIcon('Plus', 16)}</button>
+                    </div>
+                    <div class="flex justify-between gap-2 mb-4">
+                        <button class="add-patient-preset-btn w-full py-1 text-sm bg-gray-700 text-gray-300 rounded hover:bg-gray-600" data-duration="25">+25 min</button>
+                        <button class="add-patient-preset-btn w-full py-1 text-sm bg-gray-700 text-gray-300 rounded hover:bg-gray-600" data-duration="30">+30 min</button>
+                        <button class="add-patient-preset-btn w-full py-1 text-sm bg-gray-700 text-gray-300 rounded hover:bg-gray-600" data-duration="38">+38 min</button>
+                    </div>
+                    <div id="patient-list" class="space-y-2 max-h-48 overflow-y-auto p-1 bg-gray-900/50 rounded min-h-[4rem]">
+                        ${queue.map(p => `
+                            <div draggable="true" class="patient-item flex justify-between items-center p-2 rounded-md shadow-sm cursor-grab active:cursor-grabbing border ${getAppointmentColor(p.duration)}" data-patient-id="${p.id}">
+                                <span class="font-semibold">${p.name} (${p.duration} min)</span>
+                                <button class="remove-patient-btn p-1 hover:bg-white/10 rounded-full" data-patient-id="${p.id}">${getIcon('Trash2', 14)}</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button id="auto-schedule-btn" class="w-full mt-4 py-2 px-4 bg-gray-700 text-yellow-300 font-semibold rounded-lg hover:bg-gray-600 flex items-center justify-center gap-2">${getIcon('Zap')} Optimize Schedule</button>
+                </div>
+            `;
+        }
+
+        function renderTimeInput(value, id) {
+            return `
+                <div class="flex items-center gap-1">
+                    <input type="time" value="${value}" class="time-input w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-1 focus:ring-yellow-500 focus:border-yellow-500" data-id="${id}" />
+                    <div class="flex flex-col border border-gray-600 rounded-md overflow-hidden">
+                        <button class="time-adjust-btn px-2 text-sm bg-gray-800 text-gray-300 hover:bg-gray-700 border-b border-gray-600" data-id="${id}" data-amount="15" aria-label="Increase time by 15 minutes">+</button>
+                        <button class="time-adjust-btn px-2 text-sm bg-gray-800 text-gray-300 hover:bg-gray-700" data-id="${id}" data-amount="-15" aria-label="Decrease time by 15 minutes">-</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderSettingsPanel(settings) {
+            const container = document.getElementById('settings-panel-container');
+            container.innerHTML = `
+                <details class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700" open>
+                    <summary class="font-semibold text-lg text-gray-200 cursor-pointer">Work Day & Breaks</summary>
+                    <div class="mt-4 space-y-4">
+                        <div>
+                            <h3 class="font-semibold text-gray-400 mb-2">Work Start Time</h3>
+                            <div class="p-2 bg-gray-900/50 rounded-lg">
+                                ${renderTimeInput(settings.workDay.startTime, 'workDay.startTime')}
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-400 mb-2">Breaks</h3>
+                            <div class="space-y-2">
+                                ${settings.breaks.map(br => `
+                                    <div class="space-y-2 p-2 bg-gray-900/50 rounded-lg">
+                                        <div class="flex justify-between items-center">
+                                            <input type="text" placeholder="Label" value="${br.label}" class="setting-input w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-yellow-500 focus:border-yellow-500" data-list="breaks" data-id="${br.id}" data-field="label" />
+                                            <button class="remove-list-item-btn ml-2 text-red-400 hover:text-red-300 shrink-0" data-list="breaks" data-id="${br.id}">${getIcon('Trash2', 16)}</button>
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label class="text-xs text-gray-500">Start</label>
+                                                ${renderTimeInput(br.start, `breaks.${br.id}.start`)}
+                                            </div>
+                                            <div>
+                                                <label class="text-xs text-gray-500">End</label>
+                                                ${renderTimeInput(br.end, `breaks.${br.id}.end`)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <button id="add-break-btn" class="mt-2 w-full py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600">Add Break</button>
+                        </div>
+                    </div>
+                </details>
+                <details class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
+                    <summary class="font-semibold text-lg text-gray-200 cursor-pointer">Other Tasks & Settings</summary>
+                    <div class="mt-4 space-y-4">
+                        <div>
+                            <h3 class="font-semibold text-gray-400 mb-2">Other Scheduled Tasks</h3>
+                            <div class="space-y-2">
+                            ${settings.otherTasks.map(task => `
+                                <div class="space-y-2 p-2 bg-gray-900/50 rounded-lg">
+                                    <div class="flex justify-between items-center">
+                                        <input type="text" placeholder="Label" value="${task.label}" class="setting-input w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-yellow-500 focus:border-yellow-500" data-list="otherTasks" data-id="${task.id}" data-field="label" />
+                                        <button class="remove-list-item-btn ml-2 text-red-400 hover:text-red-300 shrink-0" data-list="otherTasks" data-id="${task.id}">${getIcon('Trash2', 16)}</button>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div><label class="text-xs text-gray-500">Start</label>${renderTimeInput(task.start, `otherTasks.${task.id}.start`)}</div>
+                                        <div><label class="text-xs text-gray-500">End</label>${renderTimeInput(task.end, `otherTasks.${task.id}.end`)}</div>
+                                    </div>
+                                    <select class="setting-input w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-yellow-500 focus:border-yellow-500" data-list="otherTasks" data-id="${task.id}" data-field="type">
+                                        <option value="non-billable" ${task.type === 'non-billable' ? 'selected' : ''}>Non-Billable</option>
+                                        <option value="billable" ${task.type === 'billable' ? 'selected' : ''}>Billable</option>
+                                    </select>
+                                </div>
+                            `).join('')}
+                            </div>
+                            <button id="add-task-btn" class="mt-2 w-full py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600">Add Task</button>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-400 mb-2">General Settings</h3>
+                            <div class="space-y-2 text-gray-300">
+                                <div class="flex justify-between items-center"><label>Setup Time (min)</label><input type="number" value="${settings.setupTime}" class="setting-input w-20 px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-yellow-500 focus:border-yellow-500" data-field="setupTime" /></div>
+                                <div class="flex justify-between items-center"><label>Transition Time (min)</label><input type="number" value="${settings.transitionTime}" class="setting-input w-20 px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-yellow-500 focus:border-yellow-500" data-field="transitionTime" /></div>
+                                <div class="flex justify-between items-center"><label>Productivity Target (%)</label><input type="number" value="${settings.productivityTarget}" class="setting-input w-20 px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-yellow-500 focus:border-yellow-500" data-field="productivityTarget" /></div>
+                                <div class="flex justify-between items-center"><label>Workday Duration (hours)</label><input type="number" value="${settings.workdayDurationHours}" class="setting-input w-20 px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-yellow-500 focus:border-yellow-500" data-field="workdayDurationHours" /></div>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+            `;
+        }
+
+        function renderDaySummary(schedule, appointments, patientQueue, settings) {
+             const container = document.getElementById('day-summary-container');
+             if (!schedule) { container.innerHTML = ''; return; }
+             const patientsSeenCount = appointments.filter(a => a.completed).length;
+             container.innerHTML = `
+                 <div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
+                     <h2 class="text-2xl font-bold text-gray-200 mb-4">Day Summary</h2>
+                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                         <div><div class="text-2xl sm:text-3xl font-bold ${schedule.meetsTarget ? 'text-green-400' : 'text-gray-300'}">${schedule.projectedClockOutMins > 0 ? minutesToTime(schedule.projectedClockOutMins) : "--:--"}</div><div class="text-sm text-gray-400">Target Clock-Out</div></div>
+                         <div><div class="text-2xl sm:text-3xl font-bold text-yellow-400">${Math.floor(schedule.totalBillableTime/60)}h ${schedule.totalBillableTime % 60}m</div><div class="text-sm text-gray-400">Total Billable</div></div>
+                         <div><div class="text-2xl sm:text-3xl font-bold text-gray-300">${patientsSeenCount}</div><div class="text-sm text-gray-400">Patients Seen</div></div>
+                         <div><div class="text-2xl sm:text-3xl font-bold text-gray-300">${patientQueue.length}</div><div class="text-sm text-gray-400">Unscheduled</div></div>
+                     </div>
+                      <div class="mt-4 p-3 bg-gray-900/50 border border-gray-700 rounded-lg flex items-start gap-3">
+                        <span class="text-yellow-400 mt-1 flex-shrink-0">${getIcon('BrainCircuit', 20)}</span>
+                         <div>
+                             <h4 class="font-semibold text-yellow-400">Actionable Insights</h4>
+                             ${schedule.suggestions.map(s => `<p class="text-sm text-gray-300">${s.replace(/<b>/g, '<b class="text-yellow-300">')}</p>`).join('')}
+                         </div>
+                     </div>
+                     ${schedule.timeUnavailable !== undefined ? renderProductivityCalculator(schedule, settings) : ''}
+                 </div>
+             `;
+        }
+
+        function renderProductivityCalculator(schedule, settings) {
+            const { extraMinutes, endTime } = state.productivityCalculator;
+
+            const dayStartMins = timeStringToMinutes(settings.workDay.startTime);
+            const totalBillableTime = schedule.totalBillableTime;
+            const timeUnavailable = schedule.timeUnavailable;
+            const whatIfEndTimeMins = timeStringToMinutes(endTime);
+            const whatIfTotalWorkTime = whatIfEndTimeMins - dayStartMins;
+            const whatIfProductiveTimePossible = whatIfTotalWorkTime - timeUnavailable;
+
+            const productivityAtNewTime = whatIfProductiveTimePossible > 0
+                ? ((totalBillableTime / whatIfProductiveTimePossible) * 100).toFixed(1)
+                : "0.0";
+
+            const addedMinutes = parseInt(extraMinutes) || 0;
+            const newTotalBillableTime = totalBillableTime + addedMinutes;
+            const productivityWithExtraMinutes = whatIfProductiveTimePossible > 0
+                ? ((newTotalBillableTime / whatIfProductiveTimePossible) * 100).toFixed(1)
+                : "0.0";
+
+            return `
+                 <details class="mt-4 bg-gray-900/50 rounded-lg p-3 border border-gray-700">
+                    <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2">${getIcon('TrendingUp')} Productivity Calculator</summary>
+                    <div class="mt-4 space-y-4 pt-4 border-t border-gray-700">
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-400">If I clock out at...</label>
+                            ${renderTimeInput(endTime, 'productivity.endTime')}
+                            <p class="text-sm text-gray-300 mt-2">Your productivity would be: <strong class="text-lg text-yellow-400">${productivityAtNewTime}%</strong></p>
+                        </div>
+                        <hr class="border-gray-700"/>
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-400">And I add an extra...</label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="extra-minutes-input" value="${extraMinutes}" class="w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-yellow-500 focus:border-yellow-500" placeholder="e.g., 30" />
+                                <span class="text-sm text-gray-500">billable mins</span>
+                            </div>
+                            <p class="text-sm text-gray-300">Your new productivity would be: <strong class="text-lg text-yellow-400">${productivityWithExtraMinutes}%</strong> (at the time specified above)</p>
+                        </div>
+                    </div>
+                </details>
+            `;
+        }
+
+        function renderScheduleTimeline(schedule, settings) {
+            const container = document.getElementById('schedule-timeline-container');
+            if(!schedule) { container.innerHTML = ''; return; }
+
+            const dayStartMins = timeStringToMinutes(settings.workDay.startTime);
+            const totalDayDuration = settings.workdayDurationHours * 60;
+            const startHour = Math.floor(dayStartMins / 60);
+            const endHour = startHour + settings.workdayDurationHours;
+
+            let timeMarkersHTML = '';
+            for (let hour = startHour; hour <= endHour; hour++) {
+                const hourMins = hour * 60;
+                const top = ((hourMins - dayStartMins) / totalDayDuration) * 100;
+                if (top >= 0 && top <= 100) {
+                    timeMarkersHTML += `
+                        <div class="absolute w-full" style="top: ${top}%">
+                            <span class="text-xs text-gray-500 absolute -left-12 transform -translate-y-1/2">${hour % 12 || 12}:00 ${hour < 12 || hour >= 24 ? 'AM' : 'PM'}</span>
+                            <div class="border-t border-gray-700"></div>
+                        </div>
+                    `;
                 }
             }
-        });
 
-        // Start the application
-        document.addEventListener('DOMContentLoaded', init);
+            const timelineItemsHTML = schedule.timelineItems.map(item => {
+                 if (totalDayDuration <= 0) return '';
+                 const top = ((item.startMins - dayStartMins) / totalDayDuration) * 100;
+                 const height = ((item.endMins - item.startMins) / totalDayDuration) * 100;
+                 if (height <= 0) return '';
+
+                 let content = '';
+
+                 switch(item.type) {
+                     case 'appointment':
+                        content = `
+                            <div draggable="true" class="timeline-appointment-item relative group w-[90%] left-[5%] p-1 rounded-md text-xs cursor-pointer h-full flex flex-col justify-center border ${getAppointmentColor(item.duration)} ${item.completed ? 'opacity-60' : ''}" data-id="${item.id}">
+                                <strong class="${item.completed ? 'line-through' : ''}">${item.name} (${item.duration}m)</strong>
+                                <span class="text-[10px] ${item.completed ? 'line-through' : ''}">${minutesToTime(item.startMins)}-${minutesToTime(item.endMins)}</span>
+                                <div class="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button class="edit-appointment-btn p-0.5 bg-gray-900/50 rounded-full hover:bg-gray-900/80" data-id="${item.id}">${getIcon('Edit', 14)}</button>
+                                    <button class="toggle-complete-btn p-0.5 bg-gray-900/50 rounded-full hover:bg-gray-900/80" data-id="${item.id}">${getIcon('CheckCircle', 14)}</button>
+                                    <button class="remove-appointment-btn p-0.5 bg-gray-900/50 rounded-full hover:bg-gray-900/80" data-id="${item.id}">${getIcon('Trash2', 14)}</button>
+                                </div>
+                                ${item.completed ? `<div class="absolute top-1 right-1 p-0.5 bg-gray-900/50 rounded-full group-hover:opacity-0">${getIcon('CheckCircle', 14)}</div>` : ''}
+                            </div>`;
+                         break;
+                     case 'break':
+                         content = `<div class="w-[90%] left-[5%] p-1 rounded-md bg-gray-700/50 border-gray-600 text-gray-300 text-xs h-full flex flex-col justify-center"><span class="text-yellow-400">${getIcon('Coffee', 14)}</span><strong>${item.label}</strong><span class="text-[10px]">${minutesToTime(item.startMins)}-${minutesToTime(item.endMins)}</span></div>`;
+                         break;
+                     case 'billable':
+                     case 'non-billable':
+                         content = `<div class="w-[90%] left-[5%] p-1 rounded-md bg-gray-700/50 border-gray-600 text-gray-300 text-xs h-full flex flex-col justify-center"><span class="text-yellow-400">${getIcon('Briefcase', 14)}</span><strong>${item.label}</strong> (${item.type})<span class="text-[10px]">${minutesToTime(item.startMins)}-${minutesToTime(item.endMins)}</span></div>`;
+                         break;
+                     case 'gap':
+                         content = `<div class="timeline-gap w-[90%] left-[5%] rounded-md border-2 border-dashed border-gray-700 hover:bg-yellow-500/10 hover:border-yellow-400 transition-colors flex justify-center items-center text-gray-500 text-xs text-center h-full" data-start="${item.start}" data-duration="${item.duration}">Drop Here<br/>(${item.duration} min)</div>`;
+                         break;
+                 }
+
+                return `<div style="top: ${top}%; height: ${height}%;" class="absolute w-full">${content}</div>`;
+            }).join('');
+
+            container.innerHTML = `
+                <div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
+                    <h2 class="text-xl font-semibold text-gray-200 mb-4">Visual Schedule</h2>
+                    <div id="timeline-droppable" class="relative min-h-[75vh] bg-gray-900/50 rounded ml-10 sm:ml-14 py-2">
+                        ${timeMarkersHTML}
+                        ${timelineItemsHTML}
+                    </div>
+                </div>
+            `;
+        }
+
+        function addEventListeners() {
+            // Use event delegation on the root element for dynamic content
+            root.addEventListener('click', (e) => {
+                // Main Buttons
+                if (e.target.closest('#save-settings-btn')) handleSaveSettings();
+                if (e.target.closest('#print-btn')) window.print();
+                if (e.target.closest('#clear-day-btn')) { state.isClearModalOpen = true; render(); }
+                
+                // Notification
+                if (e.target.closest('#dismiss-notification-btn')) { state.notification = { message: '', type: '' }; renderNotification(state.notification); }
+                
+                // Modals
+                if (e.target.closest('#close-clear-modal-btn') || e.target.closest('#cancel-clear-btn')) { state.isClearModalOpen = false; render(); }
+                if (e.target.closest('#confirm-clear-btn')) handleClearDay();
+                if (e.target.closest('#close-edit-modal-btn') || e.target.closest('#cancel-edit-btn')) { state.isEditModalOpen = false; render(); }
+                if (e.target.closest('#save-edit-btn')) {
+                    const input = document.getElementById('edit-duration-input');
+                    const newDuration = parseInt(input.value);
+                    if (!isNaN(newDuration) && newDuration > 0) {
+                        handleUpdateAppointmentDuration(state.editingAppointment.id, newDuration);
+                    }
+                }
+
+                // Patient Queue
+                if (e.target.closest('#add-patient-btn')) {
+                    const input = document.getElementById('patient-duration-input');
+                    const duration = parseInt(input.value);
+                    if (duration > 0) { addPatientToQueue(duration); input.value = ''; }
+                }
+                if (e.target.classList.contains('add-patient-preset-btn')) {
+                    addPatientToQueue(parseInt(e.target.dataset.duration));
+                }
+                if (e.target.closest('.remove-patient-btn')) {
+                    removePatientFromQueue(e.target.closest('.remove-patient-btn').dataset.patientId);
+                }
+                if (e.target.closest('#auto-schedule-btn')) autoSchedule();
+
+                // Timeline Buttons
+                 if (e.target.closest('.edit-appointment-btn')) {
+                    const id = e.target.closest('.edit-appointment-btn').dataset.id;
+                    state.editingAppointment = state.appointments.find(a => a.id === id);
+                    state.isEditModalOpen = true;
+                    render();
+                }
+                 if (e.target.closest('.toggle-complete-btn')) {
+                    toggleAppointmentComplete(e.target.closest('.toggle-complete-btn').dataset.id);
+                }
+                if (e.target.closest('.remove-appointment-btn')) {
+                    removeAppointmentFromSchedule(e.target.closest('.remove-appointment-btn').dataset.id);
+                }
+
+                // Settings Panel
+                 if (e.target.closest('#add-break-btn')) {
+                     state.settings.breaks.push({ id: `break-${Date.now()}`, start: '12:00', end: '12:30', label: 'New Break'});
+                     render();
+                 }
+                  if (e.target.closest('#add-task-btn')) {
+                     const defaultStart = '15:00';
+                     const defaultEnd = minutesTo24hTime(timeStringToMinutes(defaultStart) + MINIMUM_SCHEDULABLE_DURATION);
+                     state.settings.otherTasks.push({ id: `task-${Date.now()}`, start: defaultStart, end: defaultEnd, label: 'New Task', type: 'non-billable'});
+                     render();
+                 }
+                 if (e.target.closest('.remove-list-item-btn')) {
+                     const { list, id } = e.target.closest('.remove-list-item-btn').dataset;
+                     state.settings[list] = state.settings[list].filter(item => item.id != id);
+                     render();
+                 }
+                
+                // Time adjustment buttons
+                if (e.target.classList.contains('time-adjust-btn')) {
+                    const { id, amount } = e.target.dataset;
+                    handleAdjustTime(id, parseInt(amount));
+                }
+            });
+
+            // Handle keydown events for Enter key submissions
+            root.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    if (e.target.id === 'patient-duration-input') {
+                        const duration = parseInt(e.target.value);
+                        if (duration > 0) { addPatientToQueue(duration); e.target.value = ''; }
+                    }
+                    if (e.target.id === 'edit-duration-input') {
+                        const newDuration = parseInt(e.target.value);
+                        if (!isNaN(newDuration) && newDuration > 0) {
+                            handleUpdateAppointmentDuration(state.editingAppointment.id, newDuration);
+                        }
+                    }
+                }
+            });
+
+            root.addEventListener('change', (e) => {
+                if(e.target.classList.contains('setting-input')) {
+                    const { list, id, field } = e.target.dataset;
+                    const value = e.target.type === 'number' ? parseInt(e.target.value) || 0 : e.target.value;
+                    if(list && id && field) {
+                         state.settings[list] = state.settings[list].map(item => item.id == id ? { ...item, [field]: value } : item);
+                    } else if (field) {
+                        state.settings[field] = value;
+                    }
+                    render();
+                }
+                if(e.target.id === 'extra-minutes-input') {
+                    state.productivityCalculator.extraMinutes = e.target.value;
+                    render();
+                }
+            });
+
+             root.addEventListener('input', (e) => {
+                if (e.target.classList.contains('time-input')) {
+                    const id = e.target.dataset.id;
+                    const value = e.target.value;
+                    const parts = id.split('.');
+                    if (parts.length === 2 && parts[0] === 'workDay') {
+                        state.settings.workDay.startTime = value;
+                    } else if (parts.length === 3) {
+                         const [list, itemId, field] = parts;
+                         state.settings[list] = state.settings[list].map(item => item.id == itemId ? { ...item, [field]: value } : item);
+                    } else if(parts[0] === 'productivity') {
+                        state.productivityCalculator.endTime = value;
+                    }
+                    render();
+                }
+            });
+
+            // Drag and Drop
+            root.addEventListener('dragstart', (e) => {
+                 if (e.target.closest('.patient-item')) {
+                    const patientId = e.target.closest('.patient-item').dataset.patientId;
+                    state.draggedPatient = state.patientQueue.find(p => p.id === patientId);
+                } else if (e.target.closest('.timeline-appointment-item')) {
+                     const appointmentId = e.target.closest('.timeline-appointment-item').dataset.id;
+                     state.draggedPatient = state.appointments.find(a => a.id === appointmentId);
+                }
+            });
+
+            root.addEventListener('dragover', (e) => {
+                 if (e.target.closest('.timeline-gap') || e.target.closest('#timeline-droppable')) {
+                     e.preventDefault();
+                 }
+            });
+
+            root.addEventListener('drop', (e) => {
+                if (e.target.closest('.timeline-gap')) {
+                    e.preventDefault();
+                    const patient = state.draggedPatient;
+                    const gapEl = e.target.closest('.timeline-gap');
+                    const gap = {
+                        start: parseInt(gapEl.dataset.start),
+                        duration: parseInt(gapEl.dataset.duration)
+                    };
+                    const requiredTime = patient.duration + state.settings.transitionTime;
+                    if (patient && gap.duration >= requiredTime) {
+                        // Remove from both potential sources
+                        state.patientQueue = state.patientQueue.filter(p => p.id !== patient.id);
+                        state.appointments = state.appointments.filter(a => a.id !== patient.id);
+
+                        const startTime = minutesToTime(gap.start);
+                        const endTime = minutesToTime(gap.start + patient.duration);
+                        const newAppointment = {
+                            ...patient,
+                            start: startTime.slice(0, -2), startPeriod: startTime.slice(-2),
+                            end: endTime.slice(0,-2), endPeriod: endTime.slice(-2),
+                            completed: false
+                        };
+                        state.appointments.push(newAppointment);
+                        state.appointments.sort((a,b) => timeToMinutes(a.start, a.startPeriod) - timeToMinutes(b.start, b.startPeriod));
+                        render();
+                    } else if (patient) {
+                        setNotification(`Session (${patient.duration} min) does not fit in this gap (${gap.duration} min).`, 'error');
+                    }
+                } else if (e.target.closest('#timeline-droppable')) {
+                    e.preventDefault();
+                }
+                 state.draggedPatient = null;
+            });
+        }
         
-        // Add CSS animation for slideOut
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes slideOut {
-                from { opacity: 1; transform: translateY(0); }
-                to { opacity: 0; transform: translateY(-20px); }
-            }
-        `;
-        document.head.appendChild(style);
+        // Initial Load
+        init();
     </script>
 </body>
 </html>

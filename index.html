@@ -146,6 +146,48 @@
         };
 
         // --- CORE LOGIC ---
+        function calculateAppointmentLayout(items) {
+            const appointments = items.filter(item => item.type === 'appointment');
+            const otherItems = items.filter(item => item.type !== 'appointment');
+            if (appointments.length === 0) {
+                return items;
+            }
+
+            // Initialize layout properties for each appointment
+            appointments.forEach(a => a.layout = { col: -1, totalCols: 1 });
+
+            // Sort appointments by start time, then by end time as a tie-breaker
+            appointments.sort((a, b) => a.startMins - b.startMins || a.endMins - b.endMins);
+
+            let active = [];
+            for (const appt of appointments) {
+                // Remove appointments from the active list that have already finished
+                active = active.filter(a => a.endMins > appt.startMins);
+
+                // Find the first available column for the current appointment
+                const usedCols = active.map(a => a.layout.col);
+                let col = 0;
+                while(usedCols.includes(col)) col++;
+                appt.layout.col = col;
+
+                // Determine the total number of columns required for the current overlapping group
+                const group = [...active, appt];
+                const maxCols = Math.max(group.length, ...group.map(m => m.layout.totalCols));
+
+                // Update the total columns for every member of the group
+                for (const member of group) {
+                    member.layout.totalCols = maxCols;
+                }
+
+                // Add the current appointment to the active list and sort it by end time
+                active.push(appt);
+                active.sort((a,b) => a.endMins - b.endMins);
+            }
+
+            // Return all items sorted by their original start time
+            return [...appointments, ...otherItems].sort((a,b) => a.startMins - b.startMins);
+        }
+
         function calculateScheduleMetrics() {
              const allScheduledItems = [
                 ...state.settings.breaks.map(b => ({ ...b, type: 'break', startMins: timeStringToMinutes(b.start), endMins: timeStringToMinutes(b.end) })),
@@ -823,7 +865,9 @@
                 }
             }
 
-            const timelineItemsHTML = schedule.timelineItems.map(item => {
+            const timelineItemsWithLayout = calculateAppointmentLayout(schedule.timelineItems);
+
+            const timelineItemsHTML = timelineItemsWithLayout.map(item => {
                  if (totalDayDuration <= 0) return '';
                  const top = ((item.startMins - dayStartMins) / totalDayDuration) * 100;
                  const height = ((item.endMins - item.startMins) / totalDayDuration) * 100;
@@ -832,9 +876,15 @@
                  let content = '';
 
                  switch(item.type) {
-                     case 'appointment':
+                    case 'appointment':
+                        const { col, totalCols } = item.layout;
+                        const baseWidth = 90; // The timeline uses 90% of the container width
+                        const gap = 1; // 1% gap between columns
+                        const itemWidth = (baseWidth / totalCols) - gap;
+                        const itemLeft = 5 + (baseWidth / totalCols) * col + (gap / 2);
+
                         content = `
-                            <div draggable="true" class="timeline-appointment-item relative group w-[90%] left-[5%] p-1 rounded-md text-xs cursor-pointer h-full flex flex-col justify-center border ${getAppointmentColor(item.duration)} ${item.completed ? 'opacity-60' : ''}" data-id="${item.id}">
+                            <div draggable="true" style="width: ${itemWidth}%; left: ${itemLeft}%;" class="timeline-appointment-item absolute group p-1 rounded-md text-xs cursor-pointer h-full flex flex-col justify-center border ${getAppointmentColor(item.duration)} ${item.completed ? 'opacity-60' : ''}" data-id="${item.id}">
                                 <strong class="${item.completed ? 'line-through' : ''}">${item.name} (${item.duration}m)</strong>
                                 <span class="text-[10px] ${item.completed ? 'line-through' : ''}">${minutesToTime(item.startMins)}-${minutesToTime(item.endMins)}</span>
                                 <div class="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -844,17 +894,17 @@
                                 </div>
                                 ${item.completed ? `<div class="absolute top-1 right-1 p-0.5 bg-gray-900/50 rounded-full group-hover:opacity-0">${getIcon('CheckCircle', 14)}</div>` : ''}
                             </div>`;
-                         break;
-                     case 'break':
-                         content = `<div class="w-[90%] left-[5%] p-1 rounded-md bg-gray-700/50 border-gray-600 text-gray-300 text-xs h-full flex flex-col justify-center"><span class="text-yellow-400">${getIcon('Coffee', 14)}</span><strong>${item.label}</strong><span class="text-[10px]">${minutesToTime(item.startMins)}-${minutesToTime(item.endMins)}</span></div>`;
-                         break;
-                     case 'billable':
-                     case 'non-billable':
-                         content = `<div class="w-[90%] left-[5%] p-1 rounded-md bg-gray-700/50 border-gray-600 text-gray-300 text-xs h-full flex flex-col justify-center"><span class="text-yellow-400">${getIcon('Briefcase', 14)}</span><strong>${item.label}</strong> (${item.type})<span class="text-[10px]">${minutesToTime(item.startMins)}-${minutesToTime(item.endMins)}</span></div>`;
-                         break;
-                     case 'gap':
-                         content = `<div class="timeline-gap w-[90%] left-[5%] rounded-md border-2 border-dashed border-gray-700 hover:bg-yellow-500/10 hover:border-yellow-400 transition-colors flex justify-center items-center text-gray-500 text-xs text-center h-full" data-start="${item.start}" data-duration="${item.duration}">Drop Here<br/>(${item.duration} min)</div>`;
-                         break;
+                        break;
+                    case 'break':
+                        content = `<div class="absolute w-[90%] left-[5%] p-1 rounded-md bg-gray-700/50 border-gray-600 text-gray-300 text-xs h-full flex flex-col justify-center"><span class="text-yellow-400">${getIcon('Coffee', 14)}</span><strong>${item.label}</strong><span class="text-[10px]">${minutesToTime(item.startMins)}-${minutesToTime(item.endMins)}</span></div>`;
+                        break;
+                    case 'billable':
+                    case 'non-billable':
+                        content = `<div class="absolute w-[90%] left-[5%] p-1 rounded-md bg-gray-700/50 border-gray-600 text-gray-300 text-xs h-full flex flex-col justify-center"><span class="text-yellow-400">${getIcon('Briefcase', 14)}</span><strong>${item.label}</strong> (${item.type})<span class="text-[10px]">${minutesToTime(item.startMins)}-${minutesToTime(item.endMins)}</span></div>`;
+                        break;
+                    case 'gap':
+                        content = `<div class="timeline-gap absolute w-[90%] left-[5%] rounded-md border-2 border-dashed border-gray-700 hover:bg-yellow-500/10 hover:border-yellow-400 transition-colors flex justify-center items-center text-gray-500 text-xs text-center h-full" data-start="${item.start}" data-duration="${item.duration}">Drop Here<br/>(${item.duration} min)</div>`;
+                        break;
                  }
 
                 return `<div style="top: ${top}%; height: ${height}%;" class="absolute w-full">${content}</div>`;

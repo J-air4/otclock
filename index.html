@@ -286,8 +286,7 @@
             renderDaySummary(schedule, appointments, patientQueue, settings);
             renderScheduleTimeline(schedule, settings);
             
-            // Add event listeners
-            addEventListeners();
+            // Event listeners are now attached once in init()
         }
 
         // --- EVENT HANDLERS & LOGIC ---
@@ -542,6 +541,7 @@
                 console.error("Failed to load from localStorage", e);
                 setNotification("Could not load saved settings.", 'error');
             }
+            addEventListeners(); // Attach event listeners once
             render();
         }
 

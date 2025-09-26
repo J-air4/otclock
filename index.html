@@ -1304,23 +1304,27 @@
         }
 
         function handleRootKeyDown(e) {
+            const target = e.target;
+
             if (e.key === 'Enter') {
-                if (e.target.id === 'patient-duration-input') {
-                    addPatientToQueue(parseInt(e.target.value));
-                    e.target.value = '';
-                } else if (e.target.closest('#modal-container')) {
+                if (target.id === 'patient-duration-input') {
+                    addPatientToQueue(parseInt(target.value));
+                    target.value = '';
+                } else if (target.closest('#modal-container')) {
                     document.getElementById('save-edit-btn')?.click();
                 }
             }
-            const target = e.target;
+
             if (target.matches('.time-input-hour, .time-input-minute')) {
                 const container = target.closest('.custom-time-input');
                 const hourInput = container.querySelector('.time-input-hour');
                 const minuteInput = container.querySelector('.time-input-minute');
+
                 if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
                     e.preventDefault();
                     let currentValue = parseInt(target.value) || 0;
                     currentValue += (e.key === 'ArrowUp' ? 1 : -1);
+
                     if (target.classList.contains('time-input-hour')) {
                         if (currentValue > 12) currentValue = 1;
                         if (currentValue < 1) currentValue = 12;
@@ -1331,14 +1335,10 @@
                     target.value = target.classList.contains('time-input-minute') ? String(currentValue).padStart(2, '0') : currentValue;
                     target.select();
 
-                    const container = target.closest('.custom-time-input');
                     const modal = target.closest('#modal-container');
-
                     if (modal) {
-                        // For the modal, just trigger the input handler which updates the UI without a full render
                         target.dispatchEvent(new Event('input', { bubbles: true }));
                     } else {
-                        // For settings, we need to commit the change and re-render fully, like the blur handler
                         const id = container.dataset.id;
                         if (id === 'workDay.startTime') {
                             const oldStartTimeMins = timeStringToMinutes(state.settings.workDay.startTime);
@@ -1355,6 +1355,7 @@
                     }
                     return;
                 }
+
                 if (e.key === 'ArrowRight' && target.classList.contains('time-input-hour') && target.selectionStart === target.value.length) {
                     e.preventDefault();
                     minuteInput.focus();

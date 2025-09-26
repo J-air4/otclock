@@ -39,10 +39,10 @@
             100% { opacity: 1; transform: translateY(0); }
         }
         .animate-fade-in-down { animation: fade-in-down 0.3s ease-out forwards; }
-        input[type=number]::-webkit-inner-spin-button,
-        input[type=number]::-webkit-outer-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
         }
         input[type=number] {
             -moz-appearance: textfield;
@@ -140,7 +140,11 @@
             isEditModalOpen: false,
             editingAppointment: null,
             draggedPatient: null,
-            patientCounter: 1
+            patientCounter: 1,
+            ui: {
+                isBreaksPanelOpen: true,
+                isTasksPanelOpen: false,
+            }
         };
 
         // --- HELPER FUNCTIONS ---
@@ -193,7 +197,7 @@
                 return { ...task, start: minutesTo24hTime(newStartMins), end: minutesTo24hTime(newEndMins) };
             });
         }
-
+        
         function pushScheduleFrom(anchorAppointmentId) {
             const allEvents = [
                 ...state.appointments.map(a => ({...a, eventType: 'appointment'})),
@@ -220,7 +224,7 @@
                 if (currentEventEndTime > nextEventStartTime) {
                     const pushAmount = currentEventEndTime - nextEventStartTime;
                     const newNextEventStartTime = nextEventStartTime + pushAmount;
-
+                    
                     nextEvent.start = minutesTo24hTime(newNextEventStartTime);
 
                     if (nextEvent.eventType === 'break' || nextEvent.eventType === 'otherTask') {
@@ -379,7 +383,7 @@
             const activeElementSelectionEnd = document.activeElement ? document.activeElement.selectionEnd : null;
 
             // --- CORE RENDER LOGIC ---
-            calculateScheduleMetrics();
+            calculateScheduleMetrics(); 
             const { settings, appointments, patientQueue, schedule, notification, isClearModalOpen, isEditModalOpen, editingAppointment } = state;
 
             root.innerHTML = `
@@ -558,7 +562,7 @@
 
             appointment.start = newStartTime;
             appointment.duration = newDuration;
-
+            
             closeEditModal();
 
             state.appointments.sort((a, b) => timeStringToMinutes(a.start) - timeStringToMinutes(b.start));
@@ -569,7 +573,7 @@
             } else {
                  setNotification('Session updated.', 'success');
             }
-
+            
             render();
         }
 
@@ -577,13 +581,13 @@
             const itemsToSchedule = [
                 ...state.patientQueue,
                 ...state.appointments.filter(a => !a.completed).map(a => ({ id: a.id, name: a.name, duration: a.duration }))
-            ].sort((a, b) => b.duration - a.duration);
+            ].sort((a, b) => b.duration - a.duration); 
 
             if (itemsToSchedule.length === 0) {
                 setNotification('No patients in queue to schedule.', 'error');
                 return;
             }
-
+            
             let currentAppointments = state.appointments.filter(a => a.completed);
             const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
             const unschedulable = [];
@@ -677,7 +681,7 @@
             const Icon = notification.type === 'success' ? getIcon('CheckCircle', 20) : getIcon('AlertCircle', 20);
             container.innerHTML = `<div class="fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg animate-fade-in-down border ${typeClasses[notification.type]}">${Icon}<span>${notification.message}</span><button id="dismiss-notification-btn" class="ml-4 p-1 rounded-full hover:bg-white/10">${getIcon('X', 16)}</button></div>`;
         }
-
+        
         function checkForConflicts(editingApptId, newStartMins, newDuration) {
             const newEndMins = newStartMins + newDuration + state.settings.transitionTime;
 
@@ -724,7 +728,7 @@
                             <input id="edit-duration-input" type="number" value="${appointment.duration}" class="w-full px-3 py-2 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-yellow-500 focus:border-yellow-500" />
                         </div>
                         <div id="conflict-warning" class="hidden items-center gap-2 text-sm text-yellow-300 p-2 bg-yellow-500/10 rounded-md border border-yellow-500/30">
-                            ${getIcon('AlertCircle', 16)}
+                            ${getIcon('AlertCircle', 16)} 
                             <span>This change will push subsequent appointments.</span>
                         </div>
                     </div><div class="flex justify-end gap-3"><button id="cancel-edit-btn" class="px-4 py-2 bg-gray-600 text-gray-200 rounded-lg hover:bg-gray-500">Cancel</button><button id="save-edit-btn" class="px-4 py-2 bg-yellow-500 text-gray-900 font-semibold rounded-lg hover:bg-yellow-400">Save Changes</button></div></div></div>`;
@@ -752,7 +756,7 @@
                     <button id="auto-schedule-btn" class="w-full mt-4 py-2 px-4 bg-gray-700 text-yellow-300 font-semibold rounded-lg hover:bg-gray-600 flex items-center justify-center gap-2">${getIcon('Zap')} Optimize Schedule</button>
                 </div>`;
         }
-
+        
         function renderCustomTimeInput(value, id) {
             const totalMinutes = timeStringToMinutes(value);
             const hours24 = Math.floor(totalMinutes / 60) % 24;
@@ -783,8 +787,8 @@
         function renderSettingsPanel(settings) {
             const container = document.getElementById('settings-panel-container');
             container.innerHTML = `
-                <details class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700" open>
-                    <summary class="font-semibold text-xl text-gray-200 cursor-pointer">Work Day & Breaks</summary>
+                <details class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700" ${state.ui.isBreaksPanelOpen ? 'open' : ''}>
+                    <summary class="font-semibold text-xl text-gray-200 cursor-pointer" data-panel-id="breaks">Work Day & Breaks</summary>
                     <div class="mt-4 space-y-4">
                         <div>
                             <h3 class="font-semibold text-gray-400 mb-2">Work Start Time</h3>
@@ -808,8 +812,8 @@
                         </div>
                     </div>
                 </details>
-                <details class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
-                    <summary class="font-semibold text-xl text-gray-200 cursor-pointer">Other Tasks & Settings</summary>
+                <details class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700" ${state.ui.isTasksPanelOpen ? 'open' : ''}>
+                    <summary class="font-semibold text-xl text-gray-200 cursor-pointer" data-panel-id="tasks">Other Tasks & Settings</summary>
                     <div class="mt-4 space-y-4">
                         <div>
                             <h3 class="font-semibold text-gray-400 mb-2">Other Scheduled Tasks</h3>
@@ -851,8 +855,7 @@
              const patientsSeenCount = appointments.filter(a => a.completed).length;
              container.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700"><h2 class="text-3xl font-bold text-gray-200 mb-4">Day Summary</h2><div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center"><div><div class="text-3xl sm:text-4xl font-bold ${schedule.meetsTarget ? 'text-green-400' : 'text-gray-300'}">${schedule.projectedClockOutMins > 0 ? minutesToTime(schedule.projectedClockOutMins) : "--:--"}</div><div class="text-base text-gray-400">Target Clock-Out</div></div><div><div class="text-3xl sm:text-4xl font-bold text-yellow-400">${Math.floor(schedule.totalBillableTime/60)}h ${schedule.totalBillableTime % 60}m</div><div class="text-base text-gray-400">Total Billable</div></div><div><div class="text-3xl sm:text-4xl font-bold text-gray-300">${patientsSeenCount}</div><div class="text-base text-gray-400">Patients Seen</div></div><div><div class="text-3xl sm:text-4xl font-bold text-gray-300">${patientQueue.length}</div><div class="text-base text-gray-400">Unscheduled</div></div></div><div class="mt-4 p-3 bg-gray-900/50 border border-gray-700 rounded-lg flex items-start gap-3"><span class="text-yellow-400 mt-1 flex-shrink-0">${getIcon('BrainCircuit', 20)}</span><div><h4 class="font-semibold text-lg text-yellow-400">Actionable Insights</h4>${schedule.suggestions.map(s => `<p class="text-base text-gray-300">${s.replace(/<b>/g, '<b class="text-yellow-300">')}</p>`).join('')}</div></div></div>`;
         }
-
-
+        
         // REFACTORED: This function now uses programmatic DOM creation for timeline items to improve security and performance.
         function renderScheduleTimeline(schedule, settings) {
             const container = document.getElementById('schedule-timeline-container');
@@ -869,7 +872,7 @@
 
             // Use innerHTML for the static shell of the component.
             container.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700"><h2 class="text-xl font-semibold text-gray-200 mb-4">Visual Schedule</h2><div class="timeline-scroll-container bg-gray-900/50 pl-10 sm:pl-14 py-2"><div id="timeline-droppable" class="relative" style="height: ${timelineContentHeight}px;"><div id="drag-placeholder" class="absolute bg-yellow-500/20 border-2 border-dashed border-yellow-400 rounded-md z-0 hidden pointer-events-none" style="width: 90%; left: 5%;"></div></div></div></div>`;
-
+            
             const timelineEl = document.getElementById('timeline-droppable');
             if (!timelineEl) return;
 
@@ -881,11 +884,11 @@
                 markerWrapper.className = 'absolute w-full';
                 markerWrapper.style.top = `${top}px`;
                 markerWrapper.style.left = '0';
-
+                
                 const timeLabel = document.createElement('span');
                 timeLabel.className = 'text-sm text-gray-500 absolute -left-10 sm:-left-14 text-right w-10 sm:w-14 pr-2 transform -translate-y-1/2';
                 timeLabel.textContent = `${hour % 12 || 12}:00 ${hour < 12 || hour === 24 ? 'AM' : 'PM'}`;
-
+                
                 const line = document.createElement('div');
                 line.className = 'border-t border-gray-700';
 
@@ -917,7 +920,7 @@
                         itemWrapper.style.width = `${itemWidth}%`;
                         itemWrapper.style.left = `${itemLeft}%`;
                         itemWrapper.style.zIndex = `${10 + lane}`;
-
+                        
                         const showTimeDetails = height > 40; // Don't show start/end time if block is too small
 
                         const appointmentHTML = `
@@ -934,7 +937,7 @@
                             ${item.completed ? `<div class="absolute top-2 right-2 p-1.5 bg-gray-900/50 rounded-lg group-hover:opacity-0">${getIcon('CheckCircle', 16)}</div>` : ''}
                             <div class="resize-handle top" data-direction="top"></div>
                             <div class="resize-handle bottom" data-direction="bottom"></div>`;
-
+                        
                         content = document.createElement('div');
                         content.draggable = true;
                         content.className = `timeline-appointment-item relative group px-2 py-1 rounded-md cursor-pointer h-full w-full border overflow-hidden flex items-start ${getAppointmentColor(item.duration)} ${item.completed ? 'opacity-60' : ''}`;
@@ -951,7 +954,7 @@
                         let taskBgColor = 'bg-gray-700/50 border-gray-600';
                         if (item.type === 'billable') taskBgColor = 'bg-sky-700/50 border-sky-600';
                         else if (item.type === 'non-billable') taskBgColor = 'bg-red-900/50 border-red-800/60';
-
+                        
                         content = document.createElement('div');
                         content.className = `p-2 rounded-md ${taskBgColor} text-gray-300 text-sm h-full w-full flex flex-col justify-center border`;
                         content.innerHTML = `<div class="flex items-center gap-1"><span class="text-yellow-400">${icon}</span><strong>${item.label}</strong></div><span class="text-xs opacity-70">${minutesToTime(item.startMins)} - ${minutesToTime(item.endMins)}</span>`;
@@ -975,7 +978,7 @@
             const placeholder = document.getElementById('drag-placeholder');
             if (placeholder) timelineEl.appendChild(placeholder);
         }
-
+        
         function updateStateWithNewTime(id, value) {
             const parts = id.split('.');
             if (parts.length === 2 && parts[0] === 'workDay') {
@@ -985,7 +988,7 @@
                 state.settings[list] = state.settings[list].map(item => String(item.id) === itemId ? { ...item, [field]: value } : item);
             }
         }
-
+        
         function get24hTimeFromUI(container) {
             if (!container) return null;
             const hourInput = container.querySelector('.time-input-hour');
@@ -1008,7 +1011,7 @@
 
             const startTimeMins = timeStringToMinutes(get24hTimeFromUI(startTimeContainer.querySelector('.custom-time-input')));
             const duration = parseInt(durationInput.value) || 0;
-
+            
             const hasConflict = checkForConflicts(state.editingAppointment.id, startTimeMins, duration);
             document.getElementById('conflict-warning').classList.toggle('hidden', !hasConflict);
             document.getElementById('conflict-warning').classList.toggle('flex', hasConflict);
@@ -1021,7 +1024,7 @@
             const endTimeComponent = endTimeContainer.querySelector('.custom-time-input');
             endTimeComponent.querySelector('.time-input-hour').value = hour12;
             endTimeComponent.querySelector('.time-input-minute').value = String(minute).padStart(2, '0');
-
+            
             endTimeComponent.querySelectorAll('.am-pm-btn').forEach(b => {
                 b.classList.remove('bg-yellow-500', 'text-gray-900', 'font-semibold');
                 b.classList.add('hover:bg-gray-600', 'text-gray-400');
@@ -1048,12 +1051,12 @@
             }
 
             durationInput.value = newDuration;
-
+            
             const hasConflict = checkForConflicts(state.editingAppointment.id, startTimeMins, newDuration);
             document.getElementById('conflict-warning').classList.toggle('hidden', !hasConflict);
             document.getElementById('conflict-warning').classList.toggle('flex', hasConflict);
         }
-
+        
         let resizingState = null;
         let dragInsertionPoint = null;
 
@@ -1080,12 +1083,12 @@
                     apt.duration = newDuration;
                 }
             }
-            render();
+            render(); 
         }
 
         function handleMouseUp() {
             if (!resizingState) return;
-
+            
             const appointmentId = resizingState.appointmentId;
             const oldDuration = resizingState.initialDuration;
 
@@ -1095,14 +1098,14 @@
 
             const appointment = state.appointments.find(a => a.id === appointmentId);
             const newDuration = appointment ? appointment.duration : 0;
-
+            
             if (newDuration > oldDuration) {
                 pushScheduleFrom(appointment.id);
                 setNotification('Session extended and schedule pushed.', 'success');
             } else {
                 setNotification('Session updated.', 'success');
             }
-
+            
             render();
         }
 
@@ -1128,6 +1131,19 @@
 
         // --- DELEGATED EVENT HANDLERS ---
         function handleRootClick(e) {
+            const summary = e.target.closest('summary');
+            if (summary) {
+                e.preventDefault(); // Stop the default browser toggle
+                const panelId = summary.dataset.panelId;
+                if (panelId === 'breaks') {
+                    state.ui.isBreaksPanelOpen = !state.ui.isBreaksPanelOpen;
+                } else if (panelId === 'tasks') {
+                    state.ui.isTasksPanelOpen = !state.ui.isTasksPanelOpen;
+                }
+                render();
+                return;
+            }
+
             const btn = e.target.closest('button');
             if (!btn) return;
 
@@ -1166,17 +1182,17 @@
             }
 
             // Settings
-            if (btn.id === 'add-break-btn') {
-                state.settings.breaks.push({ id: `break-${Date.now()}`, start: '12:00', end: '12:30', label: 'New Break'});
+            if (btn.id === 'add-break-btn') { 
+                state.settings.breaks.push({ id: `break-${Date.now()}`, start: '12:00', end: '12:30', label: 'New Break'}); 
                 state.ui.isBreaksPanelOpen = true;
-                render();
-                return;
+                render(); 
+                return; 
             }
-            if (btn.id === 'add-task-btn') {
-                state.settings.otherTasks.push({ id: `task-${Date.now()}`, start: '15:00', end: '15:30', label: 'New Task', type: 'non-billable'});
+            if (btn.id === 'add-task-btn') { 
+                state.settings.otherTasks.push({ id: `task-${Date.now()}`, start: '15:00', end: '15:30', label: 'New Task', type: 'non-billable'}); 
                 state.ui.isTasksPanelOpen = true;
-                render();
-                return;
+                render(); 
+                return; 
             }
             if (btn.classList.contains('remove-list-item-btn')) {
                 const { list, id } = btn.dataset;
@@ -1217,7 +1233,7 @@
                 }
             }
         }
-
+        
         function handleRootInput(e) {
             const target = e.target;
 
@@ -1469,7 +1485,7 @@
         function handleResizeMouseDown(e) {
             const handle = e.target.closest('.resize-handle');
             if (!handle) return;
-
+            
             e.preventDefault();
 
             const appointmentEl = handle.closest('.timeline-appointment-item');
@@ -1483,7 +1499,7 @@
                 initialStartMins: timeStringToMinutes(appointment.start),
                 initialDuration: appointment.duration
             };
-
+            
             window.addEventListener('mousemove', handleMouseMove);
             window.addEventListener('mouseup', handleMouseUp, { once: true });
         }
@@ -1493,3 +1509,4 @@
     </script>
 </body>
 </html>
+

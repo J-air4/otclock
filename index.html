@@ -1124,21 +1124,23 @@
             root.addEventListener('dragend', handleDragEnd);
             root.addEventListener('drop', handleDrop);
             root.addEventListener('mousedown', handleResizeMouseDown);
+            root.addEventListener('toggle', (e) => {
+                if (e.target.tagName === 'DETAILS') {
+                    const panelId = e.target.querySelector('summary')?.dataset.panelId;
+                    if (panelId === 'breaks') {
+                        state.ui.isBreaksPanelOpen = e.target.open;
+                    } else if (panelId === 'tasks') {
+                        state.ui.isTasksPanelOpen = e.target.open;
+                    }
+                }
+            }, true);
         }
 
         // --- DELEGATED EVENT HANDLERS ---
         function handleRootClick(e) {
             const summary = e.target.closest('summary');
             if (summary) {
-                const panelId = summary.dataset.panelId;
-                const detailsElement = summary.closest('details');
-                if (panelId === 'breaks') {
-                    state.ui.isBreaksPanelOpen = !detailsElement.hasAttribute('open');
-                } else if (panelId === 'tasks') {
-                    state.ui.isTasksPanelOpen = !detailsElement.hasAttribute('open');
-                }
-                // We don't call render() here because the browser handles the open/close toggle natively.
-                // We're just keeping our state in sync.
+                // The native toggle event is now handled by a dedicated listener.
                 return;
             }
 

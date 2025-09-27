@@ -597,13 +597,11 @@
                 ...state.settings.otherTasks.map(t => ({ start: timeStringToMinutes(t.start), end: timeStringToMinutes(t.end) })),
             ];
 
-            const allCurrentEvents = [
-                ...fixedEvents,
-                ...currentAppointments.map(a => ({ start: timeStringToMinutes(a.start), end: timeStringToMinutes(a.start) + a.duration + state.settings.transitionTime }))
-            ];
-
             itemsToSchedule.forEach(patient => {
-                allCurrentEvents.sort((a,b) => a.start - b.start);
+                const allCurrentEvents = [
+                    ...fixedEvents,
+                    ...currentAppointments.map(a => ({ start: timeStringToMinutes(a.start), end: timeStringToMinutes(a.start) + a.duration + state.settings.transitionTime }))
+                ].sort((a,b) => a.start - b.start);
 
                 const gaps = [];
                 let lastGapCheck = dayStartMins + state.settings.setupTime;
@@ -622,8 +620,6 @@
                     const placementTime = firstFitGap.start;
                     const newAppointment = { ...patient, start: minutesTo24hTime(placementTime), completed: false };
                     currentAppointments.push(newAppointment);
-                    // Add the newly scheduled appointment to allCurrentEvents for the next iteration
-                    allCurrentEvents.push({ start: placementTime, end: placementTime + newAppointment.duration + state.settings.transitionTime });
                 } else {
                     unschedulable.push(patient);
                 }
@@ -921,16 +917,17 @@
                         itemWrapper.style.left = `${itemLeft}%`;
                         itemWrapper.style.zIndex = `${10 + lane}`;
                         
-                        const showTimeDetails = height > 40; // Don't show start/end time if block is too small
+                        const fontSize = height < 25 ? 'text-xs' : 'text-sm';
+                        const timeDetailsVisibility = height < 20 ? 'hidden' : 'block';
 
                         const appointmentHTML = `
-                            <div class="flex justify-between w-full">
+                            <div class="flex justify-between w-full ${fontSize}">
                                 <div>
-                                    <span class="block text-base ${item.completed ? 'line-through' : ''} opacity-80">${item.duration}m</span>
-                                    ${showTimeDetails ? `<span class="block text-base ${item.completed ? 'line-through' : ''} opacity-80">${minutesToTime(item.startMins)} - ${minutesToTime(item.endMins)}</span>` : ''}
+                                    <span class="block ${item.completed ? 'line-through' : ''} opacity-80">${item.duration}m</span>
+                                    <span class="block ${timeDetailsVisibility} ${item.completed ? 'line-through' : ''} opacity-80">${minutesToTime(item.startMins)} - ${minutesToTime(item.endMins)}</span>
                                 </div>
                                 <div class="text-right">
-                                    <strong class="text-base font-semibold ${item.completed ? 'line-through' : ''}">${item.name}</strong>
+                                    <strong class="font-semibold ${item.completed ? 'line-through' : ''}">${item.name}</strong>
                                 </div>
                             </div>
                             <div class="appointment-controls absolute top-1 right-1 flex opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900/90 rounded-md shadow-lg z-10"><button class="edit-appointment-btn p-1.5" title="Edit session">${getIcon('Edit', 14)}</button><button class="toggle-complete-btn p-1.5" title="Mark complete">${getIcon('CheckCircle', 14)}</button><button class="remove-appointment-btn p-1.5" title="Remove session">${getIcon('Trash2', 14)}</button></div>
@@ -1133,14 +1130,15 @@
         function handleRootClick(e) {
             const summary = e.target.closest('summary');
             if (summary) {
-                e.preventDefault(); // Stop the default browser toggle
                 const panelId = summary.dataset.panelId;
+                const detailsElement = summary.closest('details');
                 if (panelId === 'breaks') {
-                    state.ui.isBreaksPanelOpen = !state.ui.isBreaksPanelOpen;
+                    state.ui.isBreaksPanelOpen = !detailsElement.hasAttribute('open');
                 } else if (panelId === 'tasks') {
-                    state.ui.isTasksPanelOpen = !state.ui.isTasksPanelOpen;
+                    state.ui.isTasksPanelOpen = !detailsElement.hasAttribute('open');
                 }
-                render();
+                // We don't call render() here because the browser handles the open/close toggle natively.
+                // We're just keeping our state in sync.
                 return;
             }
 
@@ -1509,4 +1507,3 @@
     </script>
 </body>
 </html>
-

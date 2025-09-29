@@ -480,6 +480,33 @@
                 }
                 return suggestions;
             }
+
+            static shiftAllScheduledTimes(deltaMinutes, state) {
+                const { appointments, settings } = state;
+
+                const newAppointments = appointments.map(apt => {
+                    const newStartMins = TimeUtils.timeStringToMinutes(apt.start) + deltaMinutes;
+                    return { ...apt, start: TimeUtils.minutesTo24hTime(newStartMins) };
+                });
+
+                const newBreaks = settings.breaks.map(br => {
+                    const newStartMins = TimeUtils.timeStringToMinutes(br.start) + deltaMinutes;
+                    const newEndMins = TimeUtils.timeStringToMinutes(br.end) + deltaMinutes;
+                    return { ...br, start: TimeUtils.minutesTo24hTime(newStartMins), end: TimeUtils.minutesTo24hTime(newEndMins) };
+                });
+
+                const newOtherTasks = settings.otherTasks.map(task => {
+                    const newStartMins = TimeUtils.timeStringToMinutes(task.start) + deltaMinutes;
+                    const newEndMins = TimeUtils.timeStringToMinutes(task.end) + deltaMinutes;
+                    return { ...task, start: TimeUtils.minutesTo24hTime(newStartMins), end: TimeUtils.minutesTo24hTime(newEndMins) };
+                });
+
+                return {
+                    appointments: newAppointments,
+                    breaks: newBreaks,
+                    otherTasks: newOtherTasks
+                };
+            }
         }
         
         // === APPLICATION CONTROLLER ===
@@ -863,9 +890,28 @@
                     this._handleModalInputChange({ [parts[1]]: newTime });
                     return;
                 }
+
+                // Handle work day start time change specifically to shift the entire schedule
+                if (id === 'workDay.startTime') {
+                    const oldSettings = this.stateManager.state.settings;
+                    const oldStartTimeMins = TimeUtils.timeStringToMinutes(oldSettings.workDay.startTime);
+                    const newStartTimeMins = TimeUtils.timeStringToMinutes(newTime);
+                    const deltaMinutes = newStartTimeMins - oldStartTimeMins;
+
+                    if (deltaMinutes !== 0) {
+                        const { appointments, breaks, otherTasks } = ScheduleCalculator.shiftAllScheduledTimes(deltaMinutes, this.stateManager.state);
+                        const updates = {
+                            appointments,
+                            settings: { ...oldSettings, workDay: { ...oldSettings.workDay, startTime: newTime }, breaks, otherTasks }
+                        };
+                        this.app.updateStateAndSchedule(updates);
+                        NotificationSystem.show(`Schedule shifted by ${deltaMinutes > 0 ? '+' : ''}${deltaMinutes} minutes.`, 'success');
+                        return; // Stop further processing
+                    }
+                }
             
+                // Generic update logic for all other time inputs
                 let updates = {};
-            
                 if (parts[0] === 'productivity') {
                     updates = { productivityCalculator: { ...this.stateManager.state.productivityCalculator, endTime: newTime }};
                 } else {

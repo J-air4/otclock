@@ -177,7 +177,6 @@
             static show(message, type = 'info') {
                 const container = document.getElementById('notification-container');
                 if (!container) return;
-
                 const typeClasses = { success: "bg-gray-800 border-green-500 text-green-300", error: "bg-gray-800 border-red-500 text-red-300", warning: "bg-gray-800 border-yellow-500 text-yellow-300", info: "bg-gray-800 border-blue-500 text-blue-300" };
                 const iconSVG = type === 'success' ? getIcon('CheckCircle', 20) : getIcon('AlertCircle', 20);
                 const notificationId = `notif-${Date.now()}`;
@@ -268,7 +267,6 @@
                 return { hasConflict: false };
             }
         }
-
 
         // === STATE MANAGEMENT ===
         class StateManager {
@@ -446,7 +444,6 @@
                         productivity = ((totalBillableTime / totalMinutesOnJob) * 100).toFixed(1);
                     }
                 }
-
                 return {
                     totalBillableTime,
                     projectedClockOutMins,
@@ -507,19 +504,20 @@
             }
 
             updateStateAndSchedule(updates) {
-                this.stateManager.setState(updates, false);
+                this.stateManager.setState(updates, false); // Update state without notifying yet
                 const nextState = this.stateManager.state;
                 const schedule = ScheduleCalculator.calculateScheduleMetrics(nextState);
 
                 const { productivityCalculator } = nextState;
                 let newProdCalc = { ...productivityCalculator };
+                // Only auto-update the calculator's end time if it hasn't been manually set from the default
                 if (schedule && schedule.projectedClockOutMins > 0 && productivityCalculator.endTime === Constants.DEFAULT_END_TIME) {
                     newProdCalc.endTime = TimeUtils.minutesTo24hTime(schedule.projectedClockOutMins);
                 }
 
-                this.stateManager.setState({ schedule, productivityCalculator: newProdCalc }, true);
+                this.stateManager.setState({ schedule, productivityCalculator: newProdCalc }, true); // Now update schedule and notify
             }
-
+            
             saveAll() {
                 if (StorageManager.saveAll(this.stateManager.state)) {
                     NotificationSystem.show('Settings and schedule saved!', 'success');
@@ -535,7 +533,7 @@
                 this.root = document.getElementById('app-root');
                 this.setupDelegatedEvents();
             }
-
+            
             setupDelegatedEvents() {
                 this.root.addEventListener('click', this.handleClick.bind(this));
                 this.root.addEventListener('input', this.handleInput.bind(this));
@@ -558,10 +556,10 @@
                     } else if (panelId === 'details-tasks') {
                         updates = { ui: { ...ui, isTasksPanelOpen: e.target.open }};
                     }
-                    this.stateManager.setState(updates, false);
+                    this.stateManager.setState(updates, false); // Don't trigger a full re-render
                 }
             }
-
+            
             handleClick(e) {
                 const btn = e.target.closest('button');
                 if (!btn) return;
@@ -658,16 +656,16 @@
                     if (gap.duration >= patientData.duration + settings.transitionTime) {
                         const newStart = TimeUtils.minutesTo24hTime(gap.start);
                         const isExistingAppointment = appointments.some(a => a.id === draggedPatientId);
-
+                        
                         let newAppointments;
                         if (isExistingAppointment) {
                             newAppointments = appointments.map(a => a.id === draggedPatientId ? { ...a, start: newStart } : a);
                         } else {
                             newAppointments = [...appointments, { ...patientData, id:`appt-${Date.now()}`, start: newStart, completed: false }];
                         }
-
+                        
                         const newQueue = patientQueue.filter(p => p.id !== draggedPatientId);
-
+                        
                         this.app.updateStateAndSchedule({
                             appointments: newAppointments.sort((a,b) => TimeUtils.timeStringToMinutes(a.start) - TimeUtils.timeStringToMinutes(b.start)),
                             patientQueue: newQueue
@@ -678,7 +676,7 @@
                 }
                 this.stateManager.setState({ dragState: { ...this.stateManager.state.dragState, draggedPatientId: null } }, false);
             }
-
+            
             autoSchedule() {
                 let { patientQueue, appointments, settings } = this.stateManager.state;
                 if (patientQueue.length === 0) {
@@ -718,7 +716,7 @@
                 this.addPatientToQueue(parseInt(input.value));
                 input.value = '';
             }
-
+            
             addPatientToQueue(duration) {
                 if (!SecurityUtils.validateDuration(duration)) {
                     NotificationSystem.show(`Duration must be between ${Constants.MINIMUM_SCHEDULABLE_DURATION} and ${Constants.MAXIMUM_SCHEDULABLE_DURATION} minutes.`, 'error');
@@ -732,7 +730,7 @@
                 });
                 NotificationSystem.show(`Patient ${newPatient.name} added to queue.`, 'success');
             }
-
+            
             removePatientFromQueue(id) {
                 const { patientQueue } = this.stateManager.state;
                 this.app.updateStateAndSchedule({ patientQueue: patientQueue.filter(p => p.id !== id) });
@@ -780,7 +778,7 @@
                 }
 
                 const updatedAppointment = { ...editingAppointment };
-                delete updatedAppointment.end;
+                delete updatedAppointment.end; // Remove temporary 'end' property
 
                 const conflict = ConflictDetector.checkForConflicts(updatedAppointment, this.stateManager.state, editingAppointment.id);
 
@@ -977,12 +975,22 @@
                 `;
             }
             update(state) {
+                const openDetails = {};
+                this.root.querySelectorAll('details').forEach(el => {
+                    if (el.id) openDetails[el.id] = el.open;
+                });
+
                 this._renderHeader();
                 this._renderModals(state.modals);
                 this._renderPatientQueue(state.patientQueue);
                 this._renderSettingsPanel(state.settings, state.ui);
                 this._renderDaySummary(state.schedule, state.appointments, state.patientQueue, state.settings, state.productivityCalculator);
                 this._renderScheduleTimeline(state.schedule, state.settings);
+
+                for (const id in openDetails) {
+                    const detailEl = this.root.querySelector(`#${id}`);
+                    if (detailEl) detailEl.open = openDetails[id];
+                }
             }
 
             _renderHeader() {
@@ -1315,7 +1323,6 @@
                         content.innerHTML = `Drop Here<br/>(${item.duration} min)`;
                         break;
                 }
-
                 if (content) {
                     wrapper.appendChild(content);
                     return wrapper;

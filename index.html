@@ -177,15 +177,34 @@
             static show(message, type = 'info') {
                 const container = document.getElementById('notification-container');
                 if (!container) return;
+
                 const typeClasses = { success: "bg-gray-800 border-green-500 text-green-300", error: "bg-gray-800 border-red-500 text-red-300", warning: "bg-gray-800 border-yellow-500 text-yellow-300", info: "bg-gray-800 border-blue-500 text-blue-300" };
-                const Icon = type === 'success' ? getIcon('CheckCircle', 20) : getIcon('AlertCircle', 20);
+                const iconSVG = type === 'success' ? getIcon('CheckCircle', 20) : getIcon('AlertCircle', 20);
                 const notificationId = `notif-${Date.now()}`;
-                const notificationHTML = `
-                    <div id="${notificationId}" class="fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg animate-fade-in-down border ${typeClasses[type]}">
-                        ${Icon}<span>${SecurityUtils.sanitizeHTML(message)}</span>
-                        <button class="ml-4 p-1 rounded-full hover:bg-white/10" onclick="document.getElementById('${notificationId}').remove()">${getIcon('X', 16)}</button>
-                    </div>`;
-                container.innerHTML = notificationHTML;
+
+                const notificationDiv = document.createElement('div');
+                notificationDiv.id = notificationId;
+                notificationDiv.className = `fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg animate-fade-in-down border ${typeClasses[type]}`;
+
+                const iconSpan = document.createElement('span');
+                iconSpan.innerHTML = iconSVG;
+
+                const messageSpan = document.createElement('span');
+                messageSpan.textContent = message;
+
+                const closeButton = document.createElement('button');
+                closeButton.className = "ml-4 p-1 rounded-full hover:bg-white/10";
+                closeButton.innerHTML = getIcon('X', 16);
+                closeButton.onclick = () => notificationDiv.remove();
+
+                notificationDiv.appendChild(iconSpan);
+                notificationDiv.appendChild(messageSpan);
+                notificationDiv.appendChild(closeButton);
+
+                // Clear previous notifications and append new one
+                container.innerHTML = '';
+                container.appendChild(notificationDiv);
+
                 setTimeout(() => {
                     const el = document.getElementById(notificationId);
                     if (el) el.remove();
@@ -985,21 +1004,66 @@
             
             _renderModals({ clearDay, editAppointment, editingAppointment }) {
                 const container = document.getElementById('modal-container');
+                if (!container) return;
                 container.innerHTML = '';
+
+                // --- Clear Day Modal ---
                 if (clearDay) {
-                    container.innerHTML = `<div class="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4"><div class="bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-6 w-full max-w-md animate-fade-in-down"><div class="flex justify-between items-center mb-4"><h2 class="text-2xl font-bold text-yellow-400">Confirm Clear Day</h2><button data-action="${Constants.ACTIONS.CANCEL_CLEAR}" class="p-1 rounded-full text-gray-400 hover:bg-gray-700">${getIcon('X', 20)}</button></div><div class="text-base text-gray-300 mb-6">Are you sure? This action cannot be undone.</div><div class="flex justify-end gap-3"><button data-action="${Constants.ACTIONS.CANCEL_CLEAR}" class="px-4 py-2 bg-gray-600 text-gray-200 rounded-lg hover:bg-gray-500">Cancel</button><button data-action="${Constants.ACTIONS.CONFIRM_CLEAR}" class="px-4 py-2 bg-red-800/80 text-red-200 rounded-lg hover:bg-red-700/80">Confirm</button></div></div></div>`;
-                } else if (editAppointment && editingAppointment) {
-                    container.innerHTML = `<div class="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4"><div class="bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-6 w-full max-w-md animate-fade-in-down"><div class="flex justify-between items-center mb-4"><h2 class="text-2xl font-bold text-yellow-400">Edit Session: ${editingAppointment.name}</h2><button data-action="${Constants.ACTIONS.CANCEL_EDIT}" class="p-1 rounded-full text-gray-400 hover:bg-gray-700">${getIcon('X', 20)}</button></div><div class="mb-6 space-y-4">
+                    const modalDiv = document.createElement('div');
+                    modalDiv.className = "fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4";
+                    modalDiv.innerHTML = `<div class="bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-6 w-full max-w-md animate-fade-in-down"><div class="flex justify-between items-center mb-4"><h2 class="text-2xl font-bold text-yellow-400">Confirm Clear Day</h2><button data-action="${Constants.ACTIONS.CANCEL_CLEAR}" class="p-1 rounded-full text-gray-400 hover:bg-gray-700">${getIcon('X', 20)}</button></div><div class="text-base text-gray-300 mb-6">Are you sure? This action cannot be undone.</div><div class="flex justify-end gap-3"><button data-action="${Constants.ACTIONS.CANCEL_CLEAR}" class="px-4 py-2 bg-gray-600 text-gray-200 rounded-lg hover:bg-gray-500">Cancel</button><button data-action="${Constants.ACTIONS.CONFIRM_CLEAR}" class="px-4 py-2 bg-red-800/80 text-red-200 rounded-lg hover:bg-red-700/80">Confirm</button></div></div></div>`;
+                    container.appendChild(modalDiv);
+                }
+                // --- Edit Appointment Modal ---
+                else if (editAppointment && editingAppointment) {
+                    const modalWrapper = document.createElement('div');
+                    modalWrapper.className = "fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4";
+
+                    const modalContent = document.createElement('div');
+                    modalContent.className = "bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-6 w-full max-w-md animate-fade-in-down";
+
+                    // Header
+                    const header = document.createElement('div');
+                    header.className = "flex justify-between items-center mb-4";
+                    const title = document.createElement('h2');
+                    title.className = "text-2xl font-bold text-yellow-400";
+                    title.textContent = `Edit Session: ${editingAppointment.name}`;
+                    const closeButton = document.createElement('button');
+                    closeButton.dataset.action = Constants.ACTIONS.CANCEL_EDIT;
+                    closeButton.className = "p-1 rounded-full text-gray-400 hover:bg-gray-700";
+                    closeButton.innerHTML = getIcon('X', 20);
+                    header.appendChild(title);
+                    header.appendChild(closeButton);
+
+                    // Body
+                    const body = document.createElement('div');
+                    body.className = "mb-6 space-y-4";
+                    body.innerHTML = `
                         <div><label class="block text-base font-medium text-gray-300 mb-1">Start Time</label>${this._renderCustomTimeInput(editingAppointment.start, 'edit.start')}</div>
                         <div><label class="block text-base font-medium text-gray-300 mb-1">End Time</label>${this._renderCustomTimeInput(editingAppointment.end, 'edit.end')}</div>
-                        <div><label for="edit-duration-input" class="block text-base font-medium text-gray-300">Duration (minutes)</label><input id="edit-duration-input" type="number" value="${editingAppointment.duration}" class="w-full mt-1 px-3 py-2 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-yellow-500 focus:border-yellow-500" /></div>
-                    </div><div class="flex justify-end gap-3"><button data-action="${Constants.ACTIONS.CANCEL_EDIT}" class="px-4 py-2 bg-gray-600 text-gray-200 rounded-lg hover:bg-gray-500">Cancel</button><button data-action="${Constants.ACTIONS.SAVE_EDIT}" class="px-4 py-2 bg-yellow-500 text-gray-900 font-semibold rounded-lg hover:bg-yellow-400">Save Changes</button></div></div></div>`;
-                    document.getElementById('edit-duration-input').focus();
+                        <div><label for="edit-duration-input" class="block text-base font-medium text-gray-300">Duration (minutes)</label><input id="edit-duration-input" type="number" value="${editingAppointment.duration}" class="w-full mt-1 px-3 py-2 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-yellow-500 focus:border-yellow-500" /></div>`;
+
+                    // Footer
+                    const footer = document.createElement('div');
+                    footer.className = "flex justify-end gap-3";
+                    footer.innerHTML = `<button data-action="${Constants.ACTIONS.CANCEL_EDIT}" class="px-4 py-2 bg-gray-600 text-gray-200 rounded-lg hover:bg-gray-500">Cancel</button><button data-action="${Constants.ACTIONS.SAVE_EDIT}" class="px-4 py-2 bg-yellow-500 text-gray-900 font-semibold rounded-lg hover:bg-yellow-400">Save Changes</button>`;
+
+                    modalContent.appendChild(header);
+                    modalContent.appendChild(body);
+                    modalContent.appendChild(footer);
+                    modalWrapper.appendChild(modalContent);
+                    container.appendChild(modalWrapper);
+
+                    const durationInput = document.getElementById('edit-duration-input');
+                    if (durationInput) durationInput.focus();
                 }
             }
             
             _renderPatientQueue(queue) {
-                 document.getElementById('patient-queue-container').innerHTML = `
+                const container = document.getElementById('patient-queue-container');
+                if (!container) return;
+
+                const staticHTML = `
                     <div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
                         <h2 class="text-2xl font-semibold text-gray-200 mb-4 flex items-center gap-2"><span class="text-yellow-400">${getIcon('Clock', 20)}</span>Patient Queue (${queue.length})</h2>
                         <div class="flex gap-2 mb-2">
@@ -1009,24 +1073,214 @@
                         <div class="grid grid-cols-4 gap-2 mb-4">
                             ${Constants.PATIENT_PRESET_DURATIONS.map(d => `<button data-action="${Constants.ACTIONS.ADD_PATIENT_PRESET}" data-duration="${d}" class="w-full py-1 text-base bg-gray-700 text-gray-300 rounded hover:bg-gray-600">+${d}</button>`).join('')}
                         </div>
-                        <div id="patient-list" class="space-y-2 max-h-48 overflow-y-auto p-1 bg-gray-900/50 rounded min-h-[4rem]">
-                            ${queue.map(p => `<div draggable="true" class="patient-item flex justify-between items-center p-2 rounded-md shadow-sm cursor-grab active:cursor-grabbing border ${this._getAppointmentColor(p.duration)}" data-patient-id="${p.id}"><span class="font-semibold text-base">${p.name} (${p.duration} min)</span><button data-action="${Constants.ACTIONS.REMOVE_PATIENT}" class="p-1 hover:bg-white/10 rounded-full">${getIcon('Trash2', 14)}</button></div>`).join('')}
-                        </div>
+                        <div id="patient-list" class="space-y-2 max-h-48 overflow-y-auto p-1 bg-gray-900/50 rounded min-h-[4rem]"></div>
                         <button data-action="${Constants.ACTIONS.AUTO_SCHEDULE}" class="w-full mt-4 py-2 px-4 bg-gray-700 text-yellow-300 font-semibold rounded-lg hover:bg-gray-600 flex items-center justify-center gap-2">${getIcon('Zap')} Optimize Schedule</button>
                     </div>`;
+
+                container.innerHTML = staticHTML;
+
+                const patientListContainer = container.querySelector('#patient-list');
+                if (!patientListContainer) return;
+
+                queue.forEach(p => {
+                    const patientDiv = document.createElement('div');
+                    patientDiv.draggable = true;
+                    patientDiv.className = `patient-item flex justify-between items-center p-2 rounded-md shadow-sm cursor-grab active:cursor-grabbing border ${this._getAppointmentColor(p.duration)}`;
+                    patientDiv.dataset.patientId = p.id;
+
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = "font-semibold text-base";
+                    nameSpan.textContent = `${p.name} (${p.duration} min)`;
+
+                    const removeButton = document.createElement('button');
+                    removeButton.dataset.action = Constants.ACTIONS.REMOVE_PATIENT;
+                    removeButton.className = "p-1 hover:bg-white/10 rounded-full";
+                    removeButton.innerHTML = getIcon('Trash2', 14);
+
+                    patientDiv.appendChild(nameSpan);
+                    patientDiv.appendChild(removeButton);
+                    patientListContainer.appendChild(patientDiv);
+                });
             }
 
             _renderSettingsPanel(settings) {
-                document.getElementById('settings-panel-container').innerHTML = `
-                <details id="details-workday" class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700" open><summary class="font-semibold text-xl text-gray-200 cursor-pointer">Work Day & Breaks</summary><div class="mt-4 space-y-4"><div><h3 class="font-semibold text-gray-400 mb-2">Work Start Time</h3><div class="p-2 bg-gray-900/50 rounded-lg">${this._renderCustomTimeInput(settings.workDay.startTime, 'workDay.startTime')}</div></div><div><h3 class="font-semibold text-gray-400 mb-2">Breaks</h3><div class="space-y-2">${settings.breaks.map(br => `<div class="space-y-2 p-2 bg-gray-900/50 rounded-lg"><div class="flex justify-between items-center"><input type="text" placeholder="Label" value="${br.label}" class="setting-input w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-list="breaks" data-id="${br.id}" data-field="label" /><button data-action="${Constants.ACTIONS.DELETE_BREAK}" data-id="${br.id}" class="ml-2 text-red-400 hover:text-red-300 shrink-0">${getIcon('Trash2', 16)}</button></div><div class="grid grid-cols-1 gap-2"><div><label class="text-sm text-gray-500">Start</label>${this._renderCustomTimeInput(br.start, `breaks.${br.id}.start`)}</div><div><label class="text-sm text-gray-500">End</label>${this._renderCustomTimeInput(br.end, `breaks.${br.id}.end`)}</div></div></div>`).join('')}</div><button data-action="${Constants.ACTIONS.ADD_BREAK}" class="mt-2 w-full py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600">Add Break</button></div></div></details>
-                <details id="details-tasks" class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700"><summary class="font-semibold text-xl text-gray-200 cursor-pointer">Other Tasks & Settings</summary><div class="mt-4 space-y-4"><div><h3 class="font-semibold text-gray-400 mb-2">Other Scheduled Tasks</h3><div class="space-y-2">${settings.otherTasks.map(task => `<div class="space-y-2 p-2 bg-gray-900/50 rounded-lg"><div class="flex justify-between items-center"><input type="text" placeholder="Label" value="${task.label}" class="setting-input w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-list="otherTasks" data-id="${task.id}" data-field="label" /><button data-action="${Constants.ACTIONS.DELETE_TASK}" data-id="${task.id}" class="ml-2 text-red-400 hover:text-red-300 shrink-0">${getIcon('Trash2', 16)}</button></div><div class="grid grid-cols-1 gap-2"><div><label class="text-sm text-gray-500">Start</label>${this._renderCustomTimeInput(task.start, `otherTasks.${task.id}.start`)}</div><div><label class="text-sm text-gray-500">End</label>${this._renderCustomTimeInput(task.end, `otherTasks.${task.id}.end`)}</div></div><select class="setting-input w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-list="otherTasks" data-id="${task.id}" data-field="type"><option value="non-billable" ${task.type === 'non-billable' ? 'selected' : ''}>Non-Billable</option><option value="billable" ${task.type === 'billable' ? 'selected' : ''}>Billable</option></select></div>`).join('')}</div><button data-action="${Constants.ACTIONS.ADD_TASK}" class="mt-2 w-full py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600">Add Task</button></div><div><h3 class="font-semibold text-gray-400 mb-2">General Settings</h3><div class="space-y-2 text-gray-300">${Object.entries({setupTime: 'Setup Time (min)', transitionTime: 'Transition Time (min)', productivityTarget: 'Productivity Target (%)', workdayDurationHours: 'Workday Duration (hours)'}).map(([field, label]) => `<div class="flex justify-between items-center"><label class="text-base">${label}</label><input type="number" value="${settings[field]}" class="setting-input w-20 px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-field="${field}" /></div>`).join('')}</div></div></div></details>`;
+                const container = document.getElementById('settings-panel-container');
+                if (!container) return;
+                container.innerHTML = ''; // Clear previous content
+
+                // Helper to create a details/summary element
+                const createDetailsSection = (id, title, isOpen = false) => {
+                    const details = document.createElement('details');
+                    details.id = id;
+                    details.className = "bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700";
+                    details.open = isOpen;
+
+                    const summary = document.createElement('summary');
+                    summary.className = "font-semibold text-xl text-gray-200 cursor-pointer";
+                    summary.textContent = title;
+
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = "mt-4 space-y-4";
+
+                    details.appendChild(summary);
+                    details.appendChild(contentDiv);
+                    return { details, contentDiv };
+                };
+
+                // Work Day & Breaks Section
+                const { details: workdayDetails, contentDiv: workdayContent } = createDetailsSection('details-workday', 'Work Day & Breaks', true);
+
+                // -- Work Start Time --
+                const startTimeSection = document.createElement('div');
+                startTimeSection.innerHTML = `<h3 class="font-semibold text-gray-400 mb-2">Work Start Time</h3><div class="p-2 bg-gray-900/50 rounded-lg">${this._renderCustomTimeInput(settings.workDay.startTime, 'workDay.startTime')}</div>`;
+                workdayContent.appendChild(startTimeSection);
+
+                // -- Breaks --
+                const breaksSection = document.createElement('div');
+                breaksSection.innerHTML = `<h3 class="font-semibold text-gray-400 mb-2">Breaks</h3>`;
+                const breaksContainer = document.createElement('div');
+                breaksContainer.className = 'space-y-2';
+                settings.breaks.forEach(br => {
+                    const breakDiv = document.createElement('div');
+                    breakDiv.className = "space-y-2 p-2 bg-gray-900/50 rounded-lg";
+                    const labelHTML = `<div class="flex justify-between items-center"><input type="text" placeholder="Label" value="${SecurityUtils.sanitizeHTML(br.label)}" class="setting-input w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-list="breaks" data-id="${br.id}" data-field="label" /><button data-action="${Constants.ACTIONS.DELETE_BREAK}" data-id="${br.id}" class="ml-2 text-red-400 hover:text-red-300 shrink-0">${getIcon('Trash2', 16)}</button></div>`;
+                    const timeHTML = `<div class="grid grid-cols-1 gap-2"><div><label class="text-sm text-gray-500">Start</label>${this._renderCustomTimeInput(br.start, `breaks.${br.id}.start`)}</div><div><label class="text-sm text-gray-500">End</label>${this._renderCustomTimeInput(br.end, `breaks.${br.id}.end`)}</div></div>`;
+                    breakDiv.innerHTML = labelHTML + timeHTML;
+                    breaksContainer.appendChild(breakDiv);
+                });
+                breaksSection.appendChild(breaksContainer);
+                const addBreakBtn = document.createElement('button');
+                addBreakBtn.dataset.action = Constants.ACTIONS.ADD_BREAK;
+                addBreakBtn.className = "mt-2 w-full py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600";
+                addBreakBtn.textContent = 'Add Break';
+                breaksSection.appendChild(addBreakBtn);
+                workdayContent.appendChild(breaksSection);
+
+                container.appendChild(workdayDetails);
+
+                // Tasks & Settings Section
+                const { details: tasksDetails, contentDiv: tasksContent } = createDetailsSection('details-tasks', 'Other Tasks & Settings');
+
+                // -- Other Scheduled Tasks --
+                const tasksSection = document.createElement('div');
+                tasksSection.innerHTML = `<h3 class="font-semibold text-gray-400 mb-2">Other Scheduled Tasks</h3>`;
+                const tasksContainer = document.createElement('div');
+                tasksContainer.className = 'space-y-2';
+                settings.otherTasks.forEach(task => {
+                    const taskDiv = document.createElement('div');
+                    taskDiv.className = "space-y-2 p-2 bg-gray-900/50 rounded-lg";
+                    taskDiv.innerHTML = `
+                        <div class="flex justify-between items-center">
+                            <input type="text" placeholder="Label" value="${SecurityUtils.sanitizeHTML(task.label)}" class="setting-input w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-list="otherTasks" data-id="${task.id}" data-field="label" />
+                            <button data-action="${Constants.ACTIONS.DELETE_TASK}" data-id="${task.id}" class="ml-2 text-red-400 hover:text-red-300 shrink-0">${getIcon('Trash2', 16)}</button>
+                        </div>
+                        <div class="grid grid-cols-1 gap-2">
+                            <div><label class="text-sm text-gray-500">Start</label>${this._renderCustomTimeInput(task.start, `otherTasks.${task.id}.start`)}</div>
+                            <div><label class="text-sm text-gray-500">End</label>${this._renderCustomTimeInput(task.end, `otherTasks.${task.id}.end`)}</div>
+                        </div>
+                        <select class="setting-input w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-list="otherTasks" data-id="${task.id}" data-field="type">
+                            <option value="non-billable" ${task.type === 'non-billable' ? 'selected' : ''}>Non-Billable</option>
+                            <option value="billable" ${task.type === 'billable' ? 'selected' : ''}>Billable</option>
+                        </select>`;
+                    tasksContainer.appendChild(taskDiv);
+                });
+                tasksSection.appendChild(tasksContainer);
+                const addTaskBtn = document.createElement('button');
+                addTaskBtn.dataset.action = Constants.ACTIONS.ADD_TASK;
+                addTaskBtn.className = "mt-2 w-full py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600";
+                addTaskBtn.textContent = 'Add Task';
+                tasksSection.appendChild(addTaskBtn);
+                tasksContent.appendChild(tasksSection);
+
+                // -- General Settings --
+                const generalSettingsSection = document.createElement('div');
+                generalSettingsSection.innerHTML = `<h3 class="font-semibold text-gray-400 mb-2">General Settings</h3>`;
+                const generalSettingsContainer = document.createElement('div');
+                generalSettingsContainer.className = 'space-y-2 text-gray-300';
+                const generalSettingsFields = {setupTime: 'Setup Time (min)', transitionTime: 'Transition Time (min)', productivityTarget: 'Productivity Target (%)', workdayDurationHours: 'Workday Duration (hours)'};
+                Object.entries(generalSettingsFields).forEach(([field, label]) => {
+                    const settingDiv = document.createElement('div');
+                    settingDiv.className = "flex justify-between items-center";
+                    settingDiv.innerHTML = `<label class="text-base">${label}</label><input type="number" value="${settings[field]}" class="setting-input w-20 px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-field="${field}" />`;
+                    generalSettingsContainer.appendChild(settingDiv);
+                });
+                generalSettingsSection.appendChild(generalSettingsContainer);
+                tasksContent.appendChild(generalSettingsSection);
+
+                container.appendChild(tasksDetails);
+            }
+
+            _createSuggestionNode(suggestionText) {
+                const p = document.createElement('p');
+                p.className = "text-base text-gray-300";
+
+                const parts = suggestionText.split(/<b>|<\/b>/);
+                let isNextPartBold = suggestionText.startsWith('<b>');
+
+                parts.forEach(part => {
+                    if (!part) return;
+
+                    if (isNextPartBold) {
+                        const b = document.createElement('b');
+                        b.className = 'text-yellow-300';
+                        b.textContent = part;
+                        p.appendChild(b);
+                    } else {
+                        p.appendChild(document.createTextNode(part));
+                    }
+                    isNextPartBold = !isNextPartBold;
+                });
+
+                return p;
             }
 
             _renderDaySummary(schedule, appointments, patientQueue, settings, productivityCalculator) {
                 const container = document.getElementById('day-summary-container');
                 if (!schedule) { container.innerHTML = ''; return; }
+
                 const patientsSeenCount = appointments.filter(a => a.completed).length;
-                container.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700"><h2 class="text-3xl font-bold text-gray-200 mb-4">Day Summary</h2><div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center"><div><div class="text-3xl sm:text-4xl font-bold ${schedule.meetsTarget ? 'text-green-400' : 'text-gray-300'}">${schedule.projectedClockOutMins > 0 ? TimeUtils.minutesToTime(schedule.projectedClockOutMins) : "--:--"}</div><div class="text-base text-gray-400">Target Clock-Out</div></div><div><div class="text-3xl sm:text-4xl font-bold text-yellow-400">${Math.floor(schedule.totalBillableTime/60)}h ${schedule.totalBillableTime % 60}m</div><div class="text-base text-gray-400">Total Billable</div></div><div><div class="text-3xl sm:text-4xl font-bold text-gray-300">${patientsSeenCount}</div><div class="text-base text-gray-400">Patients Seen</div></div><div><div class="text-3xl sm:text-4xl font-bold text-gray-300">${patientQueue.length}</div><div class="text-base text-gray-400">Unscheduled</div></div></div><div class="mt-4 p-3 bg-gray-900/50 border border-gray-700 rounded-lg flex items-start gap-3"><span class="text-yellow-400 mt-1 flex-shrink-0">${getIcon('BrainCircuit', 20)}</span><div><h4 class="font-semibold text-lg text-yellow-400">Actionable Insights</h4>${schedule.suggestions.map(s => `<p class="text-base text-gray-300">${s.replace(/<b>/g, '<b class="text-yellow-300">')}</p>`).join('')}</div></div>${schedule.totalBillableTime > 0 ? this._renderProductivityCalculator(schedule, settings, productivityCalculator) : ''}</div>`;
+
+                container.innerHTML = `
+                    <div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
+                        <h2 class="text-3xl font-bold text-gray-200 mb-4">Day Summary</h2>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                            <div>
+                                <div class="text-3xl sm:text-4xl font-bold ${schedule.meetsTarget ? 'text-green-400' : 'text-gray-300'}">${schedule.projectedClockOutMins > 0 ? TimeUtils.minutesToTime(schedule.projectedClockOutMins) : "--:--"}</div>
+                                <div class="text-base text-gray-400">Target Clock-Out</div>
+                            </div>
+                            <div>
+                                <div class="text-3xl sm:text-4xl font-bold text-yellow-400">${Math.floor(schedule.totalBillableTime/60)}h ${schedule.totalBillableTime % 60}m</div>
+                                <div class="text-base text-gray-400">Total Billable</div>
+                            </div>
+                            <div>
+                                <div class="text-3xl sm:text-4xl font-bold text-gray-300">${patientsSeenCount}</div>
+                                <div class="text-base text-gray-400">Patients Seen</div>
+                            </div>
+                            <div>
+                                <div class="text-3xl sm:text-4xl font-bold text-gray-300">${patientQueue.length}</div>
+                                <div class="text-base text-gray-400">Unscheduled</div>
+                            </div>
+                        </div>
+                        <div class="mt-4 p-3 bg-gray-900/50 border border-gray-700 rounded-lg flex items-start gap-3">
+                            <span class="text-yellow-400 mt-1 flex-shrink-0">${getIcon('BrainCircuit', 20)}</span>
+                            <div id="suggestions-list">
+                                <h4 class="font-semibold text-lg text-yellow-400">Actionable Insights</h4>
+                            </div>
+                        </div>
+                        <div id="productivity-calculator-container"></div>
+                    </div>`;
+
+                const suggestionsList = container.querySelector('#suggestions-list');
+                if (suggestionsList) {
+                    schedule.suggestions.forEach(s => {
+                        suggestionsList.appendChild(this._createSuggestionNode(s));
+                    });
+                }
+
+                const productivityContainer = container.querySelector('#productivity-calculator-container');
+                if (productivityContainer && schedule.totalBillableTime > 0) {
+                    productivityContainer.innerHTML = this._renderProductivityCalculator(schedule, settings, productivityCalculator);
+                }
             }
 
             _renderProductivityCalculator(schedule, settings, { extraMinutes, endTime }) {
@@ -1047,24 +1301,47 @@
             _renderScheduleTimeline(schedule, settings) {
                 const container = document.getElementById('schedule-timeline-container');
                 if (!schedule) { container.innerHTML = ''; return; }
+
                 const dayStartMins = TimeUtils.timeStringToMinutes(settings.workDay.startTime);
                 const totalDayDurationMins = settings.workdayDurationHours * Constants.TIME.MINUTES_IN_HOUR;
                 const timelineContentHeight = (totalDayDurationMins / Constants.TIME.MINUTES_IN_HOUR) * Constants.PIXELS_PER_HOUR;
                 const startHour = Math.floor(dayStartMins / Constants.TIME.MINUTES_IN_HOUR);
                 const endHour = startHour + settings.workdayDurationHours;
 
-                let timeMarkersHTML = '';
+                // Set the static structure
+                container.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700"><h2 class="text-xl font-semibold text-gray-200 mb-4">Visual Schedule</h2><div class="timeline-scroll-container overflow-y-auto max-h-[82vh] bg-gray-900/50 pl-10 sm:pl-14 py-2 rounded-md"><div id="timeline-droppable" class="relative" style="height: ${timelineContentHeight}px;"></div></div></div>`;
+
+                const timelineDroppable = container.querySelector('#timeline-droppable');
+                if (!timelineDroppable) return;
+
+                // Add time markers programmatically
                 for (let hour = startHour; hour <= endHour; hour++) {
                     const hourMins = hour * Constants.TIME.MINUTES_IN_HOUR;
                     const top = ((hourMins - dayStartMins) / Constants.TIME.MINUTES_IN_HOUR) * Constants.PIXELS_PER_HOUR;
-                    timeMarkersHTML += `<div class="absolute w-full" style="top: ${top}px; left: 0;"><span class="text-sm text-gray-500 absolute -left-10 sm:-left-14 text-right w-10 sm:w-14 pr-2 transform -translate-y-1/2">${hour % Constants.TIME.HOURS_AM_PM || Constants.TIME.HOURS_AM_PM}:00 ${hour < Constants.TIME.HOURS_AM_PM || hour === Constants.TIME.HOURS_IN_DAY ? 'AM' : 'PM'}</span><div class="border-t border-gray-700"></div></div>`;
+                    const markerDiv = document.createElement('div');
+                    markerDiv.className = 'absolute w-full';
+                    markerDiv.style.cssText = `top: ${top}px; left: 0;`;
+
+                    const timeLabel = document.createElement('span');
+                    timeLabel.className = 'text-sm text-gray-500 absolute -left-10 sm:-left-14 text-right w-10 sm:w-14 pr-2 transform -translate-y-1/2';
+                    timeLabel.textContent = `${hour % Constants.TIME.HOURS_AM_PM || Constants.TIME.HOURS_AM_PM}:00 ${hour < Constants.TIME.HOURS_AM_PM || hour === Constants.TIME.HOURS_IN_DAY ? 'AM' : 'PM'}`;
+
+                    const lineDiv = document.createElement('div');
+                    lineDiv.className = 'border-t border-gray-700';
+
+                    markerDiv.appendChild(timeLabel);
+                    markerDiv.appendChild(lineDiv);
+                    timelineDroppable.appendChild(markerDiv);
                 }
 
+                // Add timeline items programmatically
                 const timelineItemsWithLayout = ScheduleCalculator.calculateAppointmentLayout(schedule.timelineItems);
-                const timelineItemsHTML = timelineItemsWithLayout.map(item => this._getTimelineItemHTML(item, dayStartMins)).join('');
+                timelineItemsWithLayout.forEach(item => {
+                    const element = this._createTimelineItemElement(item, dayStartMins);
+                    if (element) timelineDroppable.appendChild(element);
+                });
 
-                container.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700"><h2 class="text-xl font-semibold text-gray-200 mb-4">Visual Schedule</h2><div class="timeline-scroll-container overflow-y-auto max-h-[82vh] bg-gray-900/50 pl-10 sm:pl-14 py-2 rounded-md"><div id="timeline-droppable" class="relative" style="height: ${timelineContentHeight}px;">${timeMarkersHTML}${timelineItemsHTML}</div></div></div>`;
-
+                // Auto-scroll logic
                 const scrollContainer = container.querySelector('.timeline-scroll-container');
                 if (scrollContainer && !this.initialScrollDone) {
                     const now = new Date();
@@ -1075,36 +1352,82 @@
                 }
             }
 
-            _getTimelineItemHTML(item, dayStartMins) {
+            _createTimelineItemElement(item, dayStartMins) {
                 const top = ((item.startMins - dayStartMins) / Constants.TIME.MINUTES_IN_HOUR) * Constants.PIXELS_PER_HOUR;
                 const height = ((item.endMins - item.startMins) / Constants.TIME.MINUTES_IN_HOUR) * Constants.PIXELS_PER_HOUR;
-                if (height <= Constants.TIMELINE_LAYOUT.ITEM_MIN_HEIGHT_PX) return ''; 
+                if (height <= Constants.TIMELINE_LAYOUT.ITEM_MIN_HEIGHT_PX) return null;
 
-                let content = '', style = `top: ${top}px; height: ${height}px;`;
+                const wrapper = document.createElement('div');
+                wrapper.className = 'absolute';
+                wrapper.style.cssText = `top: ${top}px; height: ${height}px;`;
+
+                let content;
 
                 switch (item.type) {
                     case 'appointment':
                         const { lane, totalLanes } = item.layout;
                         const itemWidth = totalLanes > 1 ? (Constants.TIMELINE_LAYOUT.BASE_WIDTH_PERCENT / totalLanes) - Constants.TIMELINE_LAYOUT.OVERLAP_GAP_PERCENT : Constants.TIMELINE_LAYOUT.BASE_WIDTH_PERCENT;
                         const itemLeft = Constants.TIMELINE_LAYOUT.BASE_LEFT_PERCENT + (lane * (Constants.TIMELINE_LAYOUT.BASE_WIDTH_PERCENT / totalLanes)) + (totalLanes > 1 ? Constants.TIMELINE_LAYOUT.OVERLAP_OFFSET_PERCENT : 0);
-                        style += ` width: ${itemWidth}%; left: ${itemLeft}%; z-index: ${Constants.TIMELINE_LAYOUT.BASE_Z_INDEX + lane};`;
-                        content = `<div class="timeline-appointment-item relative group pt-1 px-2 pb-2 rounded-md cursor-pointer h-full w-full border ${this._getAppointmentColor(item.duration)} ${item.completed ? 'opacity-60' : ''}" data-id="${item.id}" draggable="true">
-                            <div class="flex justify-between"><span class="block text-base ${item.completed ? 'line-through' : ''} opacity-80">${item.duration}m</span><strong class="text-base font-semibold ${item.completed ? 'line-through' : ''}">${item.name}</strong></div>
+                        wrapper.style.width = `${itemWidth}%`;
+                        wrapper.style.left = `${itemLeft}%`;
+                        wrapper.style.zIndex = `${Constants.TIMELINE_LAYOUT.BASE_Z_INDEX + lane}`;
+
+                        content = document.createElement('div');
+                        content.className = `timeline-appointment-item relative group pt-1 px-2 pb-2 rounded-md cursor-pointer h-full w-full border ${this._getAppointmentColor(item.duration)} ${item.completed ? 'opacity-60' : ''}`;
+                        content.dataset.id = item.id;
+                        content.draggable = true;
+
+                        content.innerHTML = `
+                            <div class="flex justify-between">
+                                <span class="block text-base ${item.completed ? 'line-through' : ''} opacity-80">${item.duration}m</span>
+                                <strong class="text-base font-semibold ${item.completed ? 'line-through' : ''}">${SecurityUtils.sanitizeHTML(item.name)}</strong>
+                            </div>
                             <span class="block text-base ${item.completed ? 'line-through' : ''} opacity-80">${TimeUtils.minutesToTime(item.startMins)} - ${TimeUtils.minutesToTime(item.endMins)}</span>
-                            <div class="absolute top-1 right-1 flex opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900/90 rounded-md shadow-lg"><button data-action="${Constants.ACTIONS.EDIT_APPOINTMENT}" class="p-1.5" title="Edit session">${getIcon('Edit', 14)}</button><button data-action="${Constants.ACTIONS.TOGGLE_COMPLETE}" class="p-1.5" title="Mark complete">${getIcon('CheckCircle', 14)}</button><button data-action="${Constants.ACTIONS.DELETE_APPOINTMENT}" class="p-1.5" title="Remove session">${getIcon('Trash2', 14)}</button></div>
-                            ${item.completed ? `<div class="absolute top-2 right-2 p-1.5 bg-gray-900/50 rounded-lg group-hover:opacity-0">${getIcon('CheckCircle', 16)}</div>` : ''}
-                        </div>`;
+                            <div class="absolute top-1 right-1 flex opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900/90 rounded-md shadow-lg">
+                                <button data-action="${Constants.ACTIONS.EDIT_APPOINTMENT}" class="p-1.5" title="Edit session">${getIcon('Edit', 14)}</button>
+                                <button data-action="${Constants.ACTIONS.TOGGLE_COMPLETE}" class="p-1.5" title="Mark complete">${getIcon('CheckCircle', 14)}</button>
+                                <button data-action="${Constants.ACTIONS.DELETE_APPOINTMENT}" class="p-1.5" title="Remove session">${getIcon('Trash2', 14)}</button>
+                            </div>
+                            ${item.completed ? `<div class="absolute top-2 right-2 p-1.5 bg-gray-900/50 rounded-lg group-hover:opacity-0">${getIcon('CheckCircle', 16)}</div>` : ''}`;
                         break;
                     case 'break': case 'billable': case 'non-billable':
-                        style += ` width: ${Constants.TIMELINE_LAYOUT.BASE_WIDTH_PERCENT}%; left: ${Constants.TIMELINE_LAYOUT.BASE_LEFT_PERCENT}%; z-index: 5;`;
-                        content = `<div class="p-2 rounded-md bg-gray-700/50 border-gray-600 text-gray-300 text-sm h-full w-full flex flex-col justify-center"><div class="flex items-center gap-1"><span class="text-yellow-400">${item.type === 'break' ? getIcon('Coffee', 14) : getIcon('Briefcase', 14)}</span><strong>${item.label}</strong></div><span class="text-xs opacity-70">${TimeUtils.minutesToTime(item.startMins)} - ${TimeUtils.minutesToTime(item.endMins)}</span></div>`;
+                        wrapper.style.width = `${Constants.TIMELINE_LAYOUT.BASE_WIDTH_PERCENT}%`;
+                        wrapper.style.left = `${Constants.TIMELINE_LAYOUT.BASE_LEFT_PERCENT}%`;
+                        wrapper.style.zIndex = '5';
+
+                        content = document.createElement('div');
+                        content.className = 'p-2 rounded-md bg-gray-700/50 border-gray-600 text-gray-300 text-sm h-full w-full flex flex-col justify-center';
+
+                        const itemHeader = document.createElement('div');
+                        itemHeader.className = 'flex items-center gap-1';
+                        itemHeader.innerHTML = `<span class="text-yellow-400">${item.type === 'break' ? getIcon('Coffee', 14) : getIcon('Briefcase', 14)}</span>`;
+                        const strong = document.createElement('strong');
+                        strong.textContent = item.label;
+                        itemHeader.appendChild(strong);
+
+                        const timeRange = document.createElement('span');
+                        timeRange.className = 'text-xs opacity-70';
+                        timeRange.textContent = `${TimeUtils.minutesToTime(item.startMins)} - ${TimeUtils.minutesToTime(item.endMins)}`;
+
+                        content.appendChild(itemHeader);
+                        content.appendChild(timeRange);
                         break;
                     case 'gap':
-                        style += ` width: ${Constants.TIMELINE_LAYOUT.BASE_WIDTH_PERCENT}%; left: ${Constants.TIMELINE_LAYOUT.BASE_LEFT_PERCENT}%;`;
-                        content = `<div class="timeline-gap rounded-md border-2 border-dashed border-gray-700 hover:bg-yellow-500/10 hover:border-yellow-400 transition-colors flex justify-center items-center text-sm text-center h-full w-full" data-start="${item.start}" data-duration="${item.duration}">Drop Here<br/>(${item.duration} min)</div>`;
+                        wrapper.style.width = `${Constants.TIMELINE_LAYOUT.BASE_WIDTH_PERCENT}%`;
+                        wrapper.style.left = `${Constants.TIMELINE_LAYOUT.BASE_LEFT_PERCENT}%`;
+                        content = document.createElement('div');
+                        content.className = 'timeline-gap rounded-md border-2 border-dashed border-gray-700 hover:bg-yellow-500/10 hover:border-yellow-400 transition-colors flex justify-center items-center text-sm text-center h-full w-full';
+                        content.dataset.start = item.start;
+                        content.dataset.duration = item.duration;
+                        content.innerHTML = `Drop Here<br/>(${item.duration} min)`;
                         break;
                 }
-                return `<div style="${style}" class="absolute">${content}</div>`;
+
+                if (content) {
+                    wrapper.appendChild(content);
+                    return wrapper;
+                }
+                return null;
             }
 
             _renderCustomTimeInput(value, id) {

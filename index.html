@@ -3,36 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Therapy Scheduler</title>
+    <title>Therapy Scheduler UI Redesign</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
     <style>
         body {
             font-family: 'Inter', sans-serif;
         }
         @media print {
-            body {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-            .printable-area, .printable-area * {
-                visibility: visible;
-                background: white !important;
-                color: black !important;
-            }
-            .printable-area {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-            }
+            body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            .printable-area, .printable-area * { visibility: visible; background: white !important; color: black !important; }
+            .printable-area { position: absolute; left: 0; top: 0; width: 100%; }
             .no-print { display: none; }
-            .border, .border-gray-700 { border-color: #ccc !important; }
-            .text-yellow-400 { color: #f59e0b !important; }
-            .text-green-400 { color: #10b981 !important; }
-            .bg-yellow-500\/20 { background-color: rgba(234, 179, 8, 0.2) !important; }
-            .bg-blue-500\/20 { background-color: rgba(59, 130, 246, 0.2) !important; }
-            .bg-green-500\/20 { background-color: rgba(16, 185, 129, 0.2) !important; }
-            .bg-purple-500\/20 { background-color: rgba(139, 92, 246, 0.2) !important; }
         }
         @keyframes fade-in-down {
             0% { opacity: 0; transform: translateY(-10px); }
@@ -44,61 +26,130 @@
             -webkit-appearance: none; 
             margin: 0; 
         }
-        input[type=number] {
-            -moz-appearance: textfield;
-        }
+        input[type=number] { -moz-appearance: textfield; }
+        
         .timeline-appointment-item {
             z-index: 10;
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
+        
         .timeline-appointment-item:hover {
             z-index: 20;
             transform: scale(1.02);
             box-shadow: 0 4px 8px rgba(0,0,0,0.5);
         }
-        .timeline-scroll-container {
-            max-height: 82vh;
-            overflow-y: auto;
-            position: relative;
-            border-radius: 0.375rem;
-        }
-        .resize-handle {
-            position: absolute;
-            left: 0;
-            width: 100%;
-            height: 8px;
-            cursor: ns-resize;
-            z-index: 30;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-        .timeline-appointment-item:hover .resize-handle {
-            opacity: 1;
-        }
-        .resize-handle.top {
-            top: -4px;
-        }
-        .resize-handle.bottom {
-            bottom: -4px;
-        }
-        /* Style for drag-over feedback */
-        .drag-over {
-            background-color: rgba(234, 179, 8, 0.05);
-        }
     </style>
-    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 </head>
-<body class="bg-gray-900">
+<body class="bg-gray-900 text-gray-300">
     <div id="app-root"></div>
 
     <script type="module">
-        // --- CONSTANTS ---
-        const MINIMUM_SCHEDULABLE_DURATION = 5;
-        const PIXELS_PER_HOUR = 120; // Used for timeline rendering and calculations
+        // === SECURITY & VALIDATION MODULE ===
+        class SecurityUtils {
+            static sanitizeHTML(str) {
+                const div = document.createElement('div');
+                div.textContent = String(str ?? '');
+                return div.innerHTML;
+            }
+            static validateTimeString(timeStr) {
+                if (!timeStr || typeof timeStr !== 'string') return false;
+                const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+                return timeRegex.test(timeStr);
+            }
+            static validateDuration(duration) {
+                const num = parseInt(duration, 10);
+                return !isNaN(num) && num >= Constants.MINIMUM_SCHEDULABLE_DURATION && num <= Constants.MAXIMUM_SCHEDULABLE_DURATION;
+            }
+            static validateLabel(label) {
+                if (!label || typeof label !== 'string') return false;
+                return label.trim().length > 0 && label.length <= Constants.MAX_LABEL_LENGTH;
+            }
+            static sanitizeInput(input, type = 'text') {
+                if (input === null || input === undefined) return '';
+                switch (type) {
+                    case 'number':
+                        const num = parseInt(input, 10);
+                        return isNaN(num) ? 0 : Math.max(0, num);
+                    case 'time':
+                        return this.validateTimeString(input) ? input : '00:00';
+                    case 'label':
+                        return String(input).trim().substring(0, Constants.MAX_LABEL_LENGTH);
+                    default:
+                        return this.sanitizeHTML(input);
+                }
+            }
+        }
 
-        // --- ICONS (SVG Strings) ---
-        const icons = {
+        // === ERROR HANDLING MODULE ===
+        class ErrorHandler {
+            static logError(error, context = '') {
+                console.error(`[TherapySchedulerApp] ${context}:`, error);
+            }
+            static showUserError(message) {
+                NotificationSystem.show(message, 'error');
+            }
+            static handleStorageError(operation, fallback = null) {
+                try {
+                    return operation();
+                } catch (error) {
+                    this.logError(error, 'Storage');
+                    this.showUserError('Storage operation failed. Your changes may not be saved.');
+                    return fallback;
+                }
+            }
+        }
+
+        // === CONSTANTS ===
+        const Constants = {
+            MINIMUM_SCHEDULABLE_DURATION: 5,
+            MAXIMUM_SCHEDULABLE_DURATION: 480,
+            PIXELS_PER_HOUR: 120,
+            MAX_WORKDAY_HOURS: 16,
+            MAX_LABEL_LENGTH: 100,
+            NOTIFICATION_TIMEOUT_MS: 5000,
+            LATE_WORK_THRESHOLD_HOUR: 19, // 7 PM
+            PATIENT_PRESET_DURATIONS: [38, 30, 53, 25],
+            DEFAULT_SETTINGS: {
+                workDay: { startTime: '08:30' },
+                breaks: [],
+                otherTasks: [],
+                transitionTime: 2,
+                setupTime: 5,
+                productivityTarget: 93,
+                workdayDurationHours: 12
+            },
+            DEFAULT_END_TIME: '17:00',
+            TIMELINE_LAYOUT: {
+                BASE_WIDTH_PERCENT: 90,
+                BASE_LEFT_PERCENT: 5,
+                OVERLAP_OFFSET_PERCENT: 0.25,
+                OVERLAP_GAP_PERCENT: 0.5,
+                BASE_Z_INDEX: 10,
+                ITEM_MIN_HEIGHT_PX: 1
+            },
+            APPOINTMENT_COLOR_THRESHOLDS: {
+                SHORT: 25,
+                MEDIUM: 35,
+                LONG: 45,
+            },
+            TIME: {
+                MINUTES_IN_HOUR: 60,
+                HOURS_IN_DAY: 24,
+                HOURS_AM_PM: 12,
+            },
+            ACTIONS: {
+                SAVE: 'save', PRINT: 'print', CLEAR_DAY: 'clear-day', CONFIRM_CLEAR: 'confirm-clear', CANCEL_CLEAR: 'cancel-clear',
+                ADD_PATIENT: 'add-patient', ADD_PATIENT_PRESET: 'add-patient-preset', REMOVE_PATIENT: 'remove-patient',
+                AUTO_SCHEDULE: 'auto-schedule', EDIT_APPOINTMENT: 'edit-appointment', DELETE_APPOINTMENT: 'delete-appointment',
+                TOGGLE_COMPLETE: 'toggle-complete', ADD_BREAK: 'add-break', DELETE_BREAK: 'delete-break', ADD_TASK: 'add-task',
+                DELETE_TASK: 'delete-task', CANCEL_EDIT: 'cancel-edit', SAVE_EDIT: 'save-edit',
+                ADJUST_TIME: 'adjust-time'
+            }
+        };
+
+        // === ICONS ===
+        const Icons = {
             Clock: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
             Plus: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`,
             Trash2: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`,
@@ -106,7 +157,6 @@
             AlertCircle: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>`,
             CheckCircle: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
             Coffee: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>`,
-            TrendingUp: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`,
             Save: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>`,
             Briefcase: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`,
             BrainCircuit: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-5.993.142"/><path d="M12 5a3 3 0 1 1 5.993.142"/><path d="M15 13a3 3 0 1 0-5.993.142"/><path d="M15 13a3 3 0 1 1 5.993.142"/><path d="M9 13a3 3 0 1 1 5.993.142"/><path d="M9 13a3 3 0 1 0-5.993.142"/><path d="M6 8.5A2.5 2.5 0 0 1 3.5 6v0A2.5 2.5 0 0 1 6 3.5V0"/><path d="M18 8.5A2.5 2.5 0 0 0 20.5 6v0A2.5 2.5 0 0 0 18 3.5V0"/><path d="M9 22a2.5 2.5 0 0 0 2.5-2.5v-1A2.5 2.5 0 0 0 9 16h0a2.5 2.5 0 0 0-2.5 2.5v1A2.5 2.5 0 0 0 9 22Z"/><path d="M15 22a2.5 2.5 0 0 1-2.5-2.5v-1A2.5 2.5 0 0 1 15 16h0a2.5 2.5 0 0 1 2.5 2.5v1A2.5 2.5 0 0 1 15 22Z"/><path d="M12 13a2.5 2.5 0 0 0 2.5-2.5v-1A2.5 2.5 0 0 0 12 7h0a2.5 2.5 0 0 0-2.5 2.5v1A2.5 2.5 0 0 0 12 13Z"/><path d="M12 5.5V7"/><path d="M15 13v-1.5"/><path d="M9 13v-1.5"/><path d="M18 8.5v1"/><path d="M6 8.5v1"/></svg>`,
@@ -114,1398 +164,978 @@
             X: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>`,
             Zap: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
             Edit: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+            TrendingUp: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`,
         };
 
         const getIcon = (name, size = 16) => {
-            const svg = icons[name] || '';
+            const svg = Icons[name] || '';
             return svg.replace('width="24"', `width="${size}"`).replace('height="24"', `height="${size}"`);
         }
 
-        // --- GLOBAL STATE ---
-        const state = {
-            settings: {
-                workDay: { startTime: '08:30' },
-                breaks: [],
-                otherTasks: [],
-                transitionTime: 2,
-                setupTime: 5,
-                productivityTarget: 93,
-                workdayDurationHours: 12,
-            },
-            appointments: [],
-            patientQueue: [],
-            schedule: null,
-            notification: { message: '', type: '' },
-            isClearModalOpen: false,
-            isEditModalOpen: false,
-            editingAppointment: null,
-            draggedPatient: null,
-            patientCounter: 1,
-            ui: {
-                isBreaksPanelOpen: true,
-                isTasksPanelOpen: false,
+        // === NOTIFICATION SYSTEM ===
+        class NotificationSystem {
+            static show(message, type = 'info') {
+                const container = document.getElementById('notification-container');
+                if (!container) return;
+                const typeClasses = { success: "bg-gray-800 border-green-500 text-green-300", error: "bg-gray-800 border-red-500 text-red-300", warning: "bg-gray-800 border-yellow-500 text-yellow-300", info: "bg-gray-800 border-blue-500 text-blue-300" };
+                const Icon = type === 'success' ? getIcon('CheckCircle', 20) : getIcon('AlertCircle', 20);
+                const notificationId = `notif-${Date.now()}`;
+                const notificationHTML = `
+                    <div id="${notificationId}" class="fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg animate-fade-in-down border ${typeClasses[type]}">
+                        ${Icon}<span>${SecurityUtils.sanitizeHTML(message)}</span>
+                        <button class="ml-4 p-1 rounded-full hover:bg-white/10" onclick="document.getElementById('${notificationId}').remove()">${getIcon('X', 16)}</button>
+                    </div>`;
+                container.innerHTML = notificationHTML;
+                setTimeout(() => {
+                    const el = document.getElementById(notificationId);
+                    if (el) el.remove();
+                }, Constants.NOTIFICATION_TIMEOUT_MS);
             }
-        };
-
-        // --- HELPER FUNCTIONS ---
-        const minutesToTime = (totalMinutes) => {
-            if (isNaN(totalMinutes) || totalMinutes < 0) return 'Invalid Time';
-            const hours24 = Math.floor(totalMinutes / 60);
-            const minutes = Math.round(totalMinutes % 60);
-            const period = hours24 >= 12 ? 'PM' : 'AM';
-            let displayHours = hours24 % 12;
-            if (displayHours === 0) displayHours = 12;
-            return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
-        };
-
-        const getAppointmentColor = (duration) => {
-            if (duration <= 25) return 'bg-yellow-500/20 border-yellow-400 text-yellow-200';
-            if (duration <= 35) return 'bg-blue-500/20 border-blue-400 text-blue-200';
-            if (duration <= 45) return 'bg-green-500/20 border-green-400 text-green-200';
-            return 'bg-purple-500/20 border-purple-400 text-purple-200';
-        };
-
-        const timeStringToMinutes = (time24h) => {
-            if (!time24h) return 0;
-            const [hours, minutes] = time24h.split(':').map(Number);
-            if (isNaN(hours) || isNaN(minutes)) return 0;
-            return hours * 60 + minutes;
-        };
-
-        const minutesTo24hTime = (totalMinutes) => {
-            if (isNaN(totalMinutes) || totalMinutes < 0) return '00:00';
-            const hours24 = Math.floor(totalMinutes / 60) % 24;
-            const minutes = Math.round(totalMinutes % 60);
-            return `${String(hours24).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-        };
-
-        function shiftAllScheduledTimes(deltaMinutes) {
-            state.appointments = state.appointments.map(apt => {
-                const newStartMins = timeStringToMinutes(apt.start) + deltaMinutes;
-                return { ...apt, start: minutesTo24hTime(newStartMins) };
-            });
-
-            state.settings.breaks = state.settings.breaks.map(br => {
-                const newStartMins = timeStringToMinutes(br.start) + deltaMinutes;
-                const newEndMins = timeStringToMinutes(br.end) + deltaMinutes;
-                return { ...br, start: minutesTo24hTime(newStartMins), end: minutesTo24hTime(newEndMins) };
-            });
-
-            state.settings.otherTasks = state.settings.otherTasks.map(task => {
-                const newStartMins = timeStringToMinutes(task.start) + deltaMinutes;
-                const newEndMins = timeStringToMinutes(task.end) + deltaMinutes;
-                return { ...task, start: minutesTo24hTime(newStartMins), end: minutesTo24hTime(newEndMins) };
-            });
         }
-        
-        function pushScheduleFrom(anchorAppointmentId) {
-            const allEvents = [
-                ...state.appointments.map(a => ({...a, eventType: 'appointment'})),
-                ...state.settings.breaks.map(b => ({...b, eventType: 'break'})),
-                ...state.settings.otherTasks.map(t => ({...t, eventType: 'otherTask'}))
-            ].sort((a, b) => timeStringToMinutes(a.start) - timeStringToMinutes(b.start));
 
-            const anchorIndex = allEvents.findIndex(e => e.id === anchorAppointmentId);
-            if (anchorIndex === -1 || anchorIndex === allEvents.length - 1) return;
+        // === TIME UTILITIES ===
+        class TimeUtils {
+            static minutesToTime(totalMinutes) {
+                if (isNaN(totalMinutes) || totalMinutes < 0) return 'Invalid Time';
+                const hours24 = Math.floor(totalMinutes / Constants.TIME.MINUTES_IN_HOUR);
+                const minutes = Math.floor(totalMinutes % Constants.TIME.MINUTES_IN_HOUR); // Use floor for precision
+                const period = hours24 >= Constants.TIME.HOURS_AM_PM ? 'PM' : 'AM';
+                let displayHours = hours24 % Constants.TIME.HOURS_AM_PM;
+                if (displayHours === 0) displayHours = Constants.TIME.HOURS_AM_PM;
+                return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+            }
+            static timeStringToMinutes(time24h) {
+                if (!time24h || !SecurityUtils.validateTimeString(time24h)) return 0;
+                const [hours, minutes] = time24h.split(':').map(Number);
+                return hours * Constants.TIME.MINUTES_IN_HOUR + minutes;
+            }
+            static minutesTo24hTime(totalMinutes) {
+                if (isNaN(totalMinutes) || totalMinutes < 0) return '00:00';
+                const hours24 = Math.floor(totalMinutes / Constants.TIME.MINUTES_IN_HOUR) % Constants.TIME.HOURS_IN_DAY;
+                const minutes = Math.floor(totalMinutes % Constants.TIME.MINUTES_IN_HOUR); // Use floor for precision
+                return `${String(hours24).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            }
+        }
 
-            for (let i = anchorIndex; i < allEvents.length - 1; i++) {
-                const currentEvent = allEvents[i];
-                const nextEvent = allEvents[i + 1];
+        // === CONFLICT DETECTION LOGIC ===
+        class ConflictDetector {
+            static checkForConflicts(newItem, state, excludeId = null) {
+                const { appointments, settings } = state;
+                const { breaks, otherTasks, transitionTime } = settings;
 
-                let currentEventEndTime;
-                if (currentEvent.eventType === 'appointment') {
-                    currentEventEndTime = timeStringToMinutes(currentEvent.start) + currentEvent.duration + state.settings.transitionTime;
-                } else {
-                    currentEventEndTime = timeStringToMinutes(currentEvent.end);
-                }
+                const newStartMins = TimeUtils.timeStringToMinutes(newItem.start);
+                // The end time for conflict purposes depends on the item type.
+                const newEndMins = newItem.duration 
+                    ? newStartMins + newItem.duration + (newItem.type === 'appointment' ? transitionTime : 0)
+                    : TimeUtils.timeStringToMinutes(newItem.end);
 
-                const nextEventStartTime = timeStringToMinutes(nextEvent.start);
+                const allItems = [
+                    ...appointments.map(a => ({ ...a, itemType: 'appointment', label: a.name })), 
+                    ...breaks.map(b => ({ ...b, itemType: 'break' })), 
+                    ...otherTasks.map(t => ({ ...t, itemType: 'task' }))
+                ];
 
-                if (currentEventEndTime > nextEventStartTime) {
-                    const pushAmount = currentEventEndTime - nextEventStartTime;
-                    const newNextEventStartTime = nextEventStartTime + pushAmount;
+                for (const item of allItems) {
+                    if (excludeId && item.id === excludeId) continue;
                     
-                    nextEvent.start = minutesTo24hTime(newNextEventStartTime);
-
-                    if (nextEvent.eventType === 'break' || nextEvent.eventType === 'otherTask') {
-                        const duration = timeStringToMinutes(nextEvent.end) - nextEventStartTime;
-                        nextEvent.end = minutesTo24hTime(newNextEventStartTime + duration);
+                    const itemStartMins = TimeUtils.timeStringToMinutes(item.start);
+                    const itemEndMins = item.duration
+                        ? itemStartMins + item.duration + (item.itemType === 'appointment' ? transitionTime : 0)
+                        : TimeUtils.timeStringToMinutes(item.end);
+                    
+                    // Standard interval overlap check
+                    if (newStartMins < itemEndMins && itemStartMins < newEndMins) {
+                        return { hasConflict: true, conflictItem: item };
                     }
                 }
-            }
-
-            const newAppointments = [];
-            const newBreaks = [];
-            const newOtherTasks = [];
-
-            allEvents.forEach(event => {
-                const { eventType, ...originalEvent } = event;
-                if (eventType === 'appointment') newAppointments.push(originalEvent);
-                else if (eventType === 'break') newBreaks.push(originalEvent);
-                else if (eventType === 'otherTask') newOtherTasks.push(originalEvent);
-            });
-
-            state.appointments = newAppointments;
-            state.settings.breaks = newBreaks;
-            state.settings.otherTasks = newOtherTasks;
-        }
-
-        // --- CORE LOGIC ---
-        function calculateAppointmentLayout(items) {
-            const appointments = items.filter(item => item.type === 'appointment');
-            const otherItems = items.filter(item => item.type !== 'appointment');
-
-            if (appointments.length === 0) return items;
-
-            // Sort appointments by start time
-            appointments.sort((a, b) => a.startMins - b.startMins);
-
-            const active = []; // A list of appointments that are currently overlapping
-
-            for (const appt of appointments) {
-                // Remove appointments from active list that have finished before the current one starts
-                let i = active.length;
-                while (i--) {
-                    if (active[i].endMins <= appt.startMins) {
-                        active.splice(i, 1);
-                    }
-                }
-
-                // Find an available lane (column) for the current appointment
-                const occupiedLanes = active.map(a => a.layout.lane);
-                let lane = 0;
-                while (occupiedLanes.includes(lane)) {
-                    lane++;
-                }
-                appt.layout = { lane: lane, totalLanes: 1 };
-
-                // Add the current appointment to the active list
-                active.push(appt);
-
-                // Update the total number of lanes for ALL appointments currently in the active list
-                const totalLanes = active.reduce((max, a) => Math.max(max, a.layout.lane), 0) + 1;
-                for (const activeAppt of active) {
-                    activeAppt.layout.totalLanes = Math.max(activeAppt.layout.totalLanes, totalLanes);
-                }
-            }
-
-            return [...appointments, ...otherItems].sort((a, b) => a.startMins - b.startMins);
-        }
-
-        function calculateScheduleMetrics() {
-             const allScheduledItems = [
-                 ...state.settings.breaks.map(b => ({ ...b, type: 'break', startMins: timeStringToMinutes(b.start), endMins: timeStringToMinutes(b.end) })),
-                 ...state.settings.otherTasks.map(t => ({ ...t, type: t.type, startMins: timeStringToMinutes(t.start), endMins: timeStringToMinutes(t.end) })),
-                 ...state.appointments.map(a => {
-                     const startMins = timeStringToMinutes(a.start);
-                     const endMins = startMins + a.duration;
-                     return { ...a, type: 'appointment', startMins, endMins };
-                 })
-             ].sort((a, b) => a.startMins - b.startMins);
-
-            const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
-            
-            let lastEnd = dayStartMins + state.settings.setupTime;
-            allScheduledItems.forEach(item => {
-                const effectiveEndMins = item.type === 'appointment' ? item.endMins + state.settings.transitionTime : item.endMins;
-                lastEnd = Math.max(lastEnd, effectiveEndMins);
-            });
-
-            const gaps = [];
-            let lastGapCheck = dayStartMins + state.settings.setupTime;
-            allScheduledItems.forEach(item => {
-                if (item.startMins > lastGapCheck) {
-                    gaps.push({ id: `gap-${lastGapCheck}`, start: lastGapCheck, end: item.startMins, duration: item.startMins - lastGapCheck, type: 'gap' });
-                }
-                const effectiveEndMins = item.type === 'appointment' ? item.endMins + state.settings.transitionTime : item.endMins;
-                lastGapCheck = Math.max(lastGapCheck, effectiveEndMins);
-            });
-
-            const totalTreatmentTime = state.appointments.reduce((sum, apt) => sum + apt.duration, 0);
-            const billableTaskTime = state.settings.otherTasks.filter(t => t.type === 'billable').reduce((sum, t) => sum + (timeStringToMinutes(t.end) - timeStringToMinutes(t.start)), 0);
-            const nonBillableTaskTime = state.settings.otherTasks.filter(t => t.type === 'non-billable').reduce((sum, t) => sum + (timeStringToMinutes(t.end) - timeStringToMinutes(t.start)), 0);
-            const totalBreakTime = state.settings.breaks.reduce((sum, br) => sum + (timeStringToMinutes(br.end) - timeStringToMinutes(br.start)), 0);
-            
-            const totalBillableTime = totalTreatmentTime + billableTaskTime;
-            const timeUnavailable = totalBreakTime + nonBillableTaskTime;
-            
-            const suggestions = [];
-            let projectedClockOutMins = 0;
-            let productivity = 0;
-
-            if (state.settings.productivityTarget > 0 && totalBillableTime > 0) {
-                const requiredTotalWorkTime = (totalBillableTime / (state.settings.productivityTarget / 100));
-                projectedClockOutMins = dayStartMins + requiredTotalWorkTime + timeUnavailable;
-                suggestions.push(`To meet your <b>${state.settings.productivityTarget}% target</b>, you should clock out around <b>${minutesToTime(projectedClockOutMins)}</b>.`);
-
-                const totalWorkTime = lastEnd - dayStartMins;
-                const totalProductiveTimePossible = totalWorkTime - timeUnavailable;
-                if (totalProductiveTimePossible > 0) {
-                    productivity = ((totalBillableTime / totalProductiveTimePossible) * 100).toFixed(1);
-                }
-            } else {
-                 suggestions.push(`Add a billable session to calculate your productivity and target clock-out time.`);
-            }
-
-            if (state.patientQueue.length > 0 && gaps.length > 0) {
-                const smallestPatientDuration = Math.min(...state.patientQueue.map(p => p.duration));
-                const suitableGap = gaps.find(g => g.duration >= smallestPatientDuration);
-
-                if (suitableGap) {
-                    suggestions.push(`You have a <b>${suitableGap.duration} min gap</b> at ${minutesToTime(suitableGap.start)} large enough for a queued session.`);
-                }
-            }
-            
-            const LATE_THRESHOLD_MINS = 19 * 60;
-            if (lastEnd > LATE_THRESHOLD_MINS) {
-                suggestions.push(`<b>Warning:</b> Your current schedule ends at <b>${minutesToTime(lastEnd)}</b>.`);
-            }
-
-            state.schedule = {
-                timelineItems: [...allScheduledItems, ...gaps.map(g => ({...g, startMins: g.start, endMins: g.end }))].sort((a,b) => a.startMins - b.startMins),
-                totalBillableTime, timeUnavailable, projectedClockOutMins, productivity,
-                meetsTarget: projectedClockOutMins > 0 && lastEnd <= projectedClockOutMins,
-                suggestions, lastEndMins: lastEnd, gaps
-            };
-
-        }
-
-        // --- RENDER FUNCTIONS ---
-        const root = document.getElementById('app-root');
-
-        function render() {
-            // --- PRESERVE STATE ---
-            const scrollContainer = document.querySelector('.timeline-scroll-container');
-            const timelineScrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
-            const mainScrollTop = window.scrollY;
-            const activeElementId = document.activeElement ? document.activeElement.id : null;
-            const activeElementSelectionStart = document.activeElement ? document.activeElement.selectionStart : null;
-            const activeElementSelectionEnd = document.activeElement ? document.activeElement.selectionEnd : null;
-
-            // --- CORE RENDER LOGIC ---
-            calculateScheduleMetrics(); 
-            const { settings, appointments, patientQueue, schedule, notification, isClearModalOpen, isEditModalOpen, editingAppointment } = state;
-
-            root.innerHTML = `
-                <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 bg-gray-900 text-gray-300 min-h-screen font-sans printable-area">
-                    <div id="notification-container"></div>
-                    <div id="modal-container"></div>
-                    <div class="no-print">
-                        <div class="bg-gray-800 rounded-lg shadow-lg p-4 sm:p-6 mb-6 border border-gray-700">
-                            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-                                <div>
-                                    <h1 class="text-3xl sm:text-4xl font-bold text-gray-100 mb-2 flex items-center gap-2">
-                                        <span class="text-yellow-400">${getIcon('Calendar', 28)}</span>
-                                        Interactive Therapy Scheduler
-                                    </h1>
-                                    <p class="text-base text-gray-400">Add patients, then drag them to the timeline or use the optimizer.</p>
-                                </div>
-                                <div class="flex flex-col sm:flex-row gap-2 shrink-0 w-full sm:w-auto">
-                                    <button id="save-settings-btn" class="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 bg-yellow-500 text-gray-900 font-semibold rounded-lg hover:bg-yellow-400">${getIcon('Save')}Save</button>
-                                    <button id="print-btn" class="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 bg-gray-600 text-gray-200 rounded-lg hover:bg-gray-500">${getIcon('Printer')}Print</button>
-                                    <button id="clear-day-btn" class="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 bg-red-800/80 text-red-200 rounded-lg hover:bg-red-700/80">${getIcon('Trash2')}Clear Day</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div class="lg:col-span-1 space-y-6 no-print">
-                            <div id="patient-queue-container"></div>
-                            <div id="settings-panel-container"></div>
-                        </div>
-                        <div class="lg:col-span-2 space-y-6">
-                            <div id="day-summary-container"></div>
-                            <div id="schedule-timeline-container"></div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            renderNotification(notification);
-            renderModals(isClearModalOpen, isEditModalOpen, editingAppointment);
-            renderPatientQueue(patientQueue);
-            renderSettingsPanel(settings);
-            renderDaySummary(schedule, appointments, patientQueue, settings);
-            renderScheduleTimeline(schedule, settings);
-
-            // --- RESTORE STATE ---
-            const newScrollContainer = document.querySelector('.timeline-scroll-container');
-            if (newScrollContainer) {
-                newScrollContainer.scrollTop = timelineScrollTop;
-            }
-            window.scrollTo(0, mainScrollTop);
-
-            if (activeElementId) {
-                const elementToFocus = document.getElementById(activeElementId);
-                if (elementToFocus) {
-                    elementToFocus.focus();
-                    if (activeElementSelectionStart !== null && activeElementSelectionEnd !== null) {
-                         try {
-                             elementToFocus.setSelectionRange(activeElementSelectionStart, activeElementSelectionEnd);
-                         } catch (e) {
-                             // some elements like buttons don't support setSelectionRange
-                         }
-                    }
-                }
+                return { hasConflict: false };
             }
         }
 
-        function setNotification(message, type) {
-            state.notification = { message, type };
-            renderNotification(state.notification);
-            setTimeout(() => {
-                if (state.notification.message === message) {
-                    state.notification = { message: '', type: '' };
-                    renderNotification(state.notification);
-                }
-            }, 5000);
-        }
 
-        // --- STATE SETTERS (ACTIONS) ---
-        function openClearModal() {
-            state.isClearModalOpen = true;
-            render();
-        }
-
-        function closeClearModal() {
-            state.isClearModalOpen = false;
-            render();
-        }
-
-        function openEditModal(appointment) {
-            state.editingAppointment = appointment;
-            state.isEditModalOpen = true;
-            render();
-        }
-
-        function closeEditModal() {
-            state.editingAppointment = null;
-            state.isEditModalOpen = false;
-            render();
-        }
-
-        function saveAppointmentChanges() {
-            const newDuration = parseInt(document.getElementById('edit-duration-input').value, 10);
-            const startTimeContainer = document.getElementById('edit-start-time-container');
-            const newStartTime = get24hTimeFromUI(startTimeContainer.querySelector('.custom-time-input'));
-            if (!isNaN(newDuration) && newDuration > 0 && newStartTime) {
-                handleUpdateAppointment(state.editingAppointment.id, newStartTime, newDuration);
+        // === STATE MANAGEMENT ===
+        class StateManager {
+            constructor() {
+                this.state = this.createInitialState();
+                this.listeners = [];
             }
-        }
-
-        function handleSaveSettings() {
-             try {
-                 localStorage.setItem('therapySchedulerSettings', JSON.stringify(state.settings));
-                 localStorage.setItem('therapySchedulerAppointments', JSON.stringify(state.appointments));
-                 localStorage.setItem('therapySchedulerQueue', JSON.stringify(state.patientQueue));
-                 setNotification('Settings and schedule saved!', 'success');
-             } catch (e) {
-                 console.error("Failed to save settings to localStorage", e);
-                 setNotification("Could not save settings. Storage might be full.", 'error');
-             }
-        }
-
-        function handleClearDay() {
-            state.appointments = [];
-            state.patientQueue = [];
-            state.patientCounter = 1;
-            try {
-                localStorage.setItem('therapySchedulerAppointments', JSON.stringify([]));
-                localStorage.setItem('therapySchedulerQueue', JSON.stringify([]));
-                setNotification('Your schedule has been cleared.', 'success');
-            } catch (e) {
-                console.error("Failed to clear schedule in localStorage", e);
-                setNotification("Could not clear schedule data.", 'error');
+            createInitialState() {
+                return {
+                    settings: Constants.DEFAULT_SETTINGS,
+                    appointments: [],
+                    patientQueue: [],
+                    schedule: null,
+                    modals: { clearDay: false, editAppointment: false, editingAppointment: null },
+                    dragState: { draggedPatientId: null },
+                    ui: { patientCounter: 1 },
+                    productivityCalculator: { extraMinutes: '', endTime: Constants.DEFAULT_END_TIME }
+                };
             }
-            closeClearModal();
-        }
-
-        function addPatientToQueue(duration) {
-            if (!isNaN(duration) && duration >= MINIMUM_SCHEDULABLE_DURATION) {
-                const newPatient = { id: `p${Date.now()}`, name: `P${state.patientCounter}`, duration };
-                state.patientCounter += 1;
-                state.patientQueue.push(newPatient);
-                setNotification(`Patient ${newPatient.name} added to queue.`, 'success');
-            } else {
-                setNotification(`Duration must be at least ${MINIMUM_SCHEDULABLE_DURATION} minutes.`, 'error');
+            subscribe(listener) {
+                this.listeners.push(listener);
+                return () => { this.listeners = this.listeners.filter(l => l !== listener); };
             }
-            render();
-        }
-
-        function removePatientFromQueue(id) {
-            state.patientQueue = state.patientQueue.filter(p => p.id !== id);
-            render();
-        }
-
-        function removeAppointmentFromSchedule(appointmentId) {
-            const appointmentToRemove = state.appointments.find(a => a.id === appointmentId);
-            if (!appointmentToRemove) return;
-
-            state.appointments = state.appointments.filter(a => a.id !== appointmentId);
-
-            if (!state.patientQueue.find(p => p.id === appointmentId)) {
-                state.patientQueue.push({ id: appointmentToRemove.id, name: appointmentToRemove.name, duration: appointmentToRemove.duration });
+            setState(updates, notify = true) {
+                this.state = { ...this.state, ...updates };
+                if(notify) this.notifyListeners();
             }
-            render();
-        }
-
-        function toggleAppointmentComplete(appointmentId) {
-            state.appointments = state.appointments.map(apt => apt.id === appointmentId ? { ...apt, completed: !apt.completed } : apt);
-            render();
-        }
-
-        function handleUpdateAppointment(appointmentId, newStartTime, newDuration) {
-            const appointment = state.appointments.find(apt => apt.id === appointmentId);
-            if (!appointment) return;
-
-            const oldDuration = appointment.duration;
-
-            appointment.start = newStartTime;
-            appointment.duration = newDuration;
-            
-            closeEditModal();
-
-            state.appointments.sort((a, b) => timeStringToMinutes(a.start) - timeStringToMinutes(b.start));
-
-            if (newDuration >= oldDuration) {
-                pushScheduleFrom(appointmentId);
-                setNotification('Session updated and schedule pushed.', 'success');
-            } else {
-                 setNotification('Session updated.', 'success');
+            updateSettings(path, value) {
+                const newSettings = { ...this.state.settings };
+                // This is a simplified setter for top-level settings fields
+                newSettings[path] = value;
+                this.setState({ settings: newSettings });
             }
-            
-            render();
-        }
-
-        function autoSchedule() {
-            const itemsToSchedule = [
-                ...state.patientQueue,
-                ...state.appointments.filter(a => !a.completed).map(a => ({ id: a.id, name: a.name, duration: a.duration }))
-            ].sort((a, b) => b.duration - a.duration); 
-
-            if (itemsToSchedule.length === 0) {
-                setNotification('No patients in queue to schedule.', 'error');
-                return;
+            updateListItem(listName, itemId, field, value) {
+                const list = this.state.settings[listName];
+                const updatedList = list.map(item => String(item.id) === String(itemId) ? { ...item, [field]: value } : item);
+                this.updateSettings(listName, updatedList);
             }
-            
-            let currentAppointments = state.appointments.filter(a => a.completed);
-            const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
-            const unschedulable = [];
-
-            const fixedEvents = [
-                ...state.settings.breaks.map(b => ({ start: timeStringToMinutes(b.start), end: timeStringToMinutes(b.end) })),
-                ...state.settings.otherTasks.map(t => ({ start: timeStringToMinutes(t.start), end: timeStringToMinutes(t.end) })),
-            ];
-
-            itemsToSchedule.forEach(patient => {
-                const allCurrentEvents = [
-                    ...fixedEvents,
-                    ...currentAppointments.map(a => ({ start: timeStringToMinutes(a.start), end: timeStringToMinutes(a.start) + a.duration + state.settings.transitionTime }))
-                ].sort((a,b) => a.start - b.start);
-
-                const gaps = [];
-                let lastGapCheck = dayStartMins + state.settings.setupTime;
-                allCurrentEvents.forEach(item => {
-                    if (item.start > lastGapCheck) {
-                        gaps.push({ start: lastGapCheck, end: item.start, duration: item.start - lastGapCheck });
-                    }
-                    lastGapCheck = Math.max(lastGapCheck, item.end);
+            notifyListeners() {
+                this.listeners.forEach(listener => {
+                    try { listener(this.state); }
+                    catch (error) { ErrorHandler.logError(error, 'StateListener'); }
                 });
-                gaps.push({ start: lastGapCheck, end: Infinity, duration: Infinity });
+            }
+        }
 
-                const requiredDuration = patient.duration + state.settings.transitionTime;
-                const firstFitGap = gaps.find(g => g.duration >= requiredDuration);
+        // === DATA PERSISTENCE ===
+        class StorageManager {
+            static KEYS = { SETTINGS: 'therapySchedulerSettings', APPOINTMENTS: 'therapySchedulerAppointments', QUEUE: 'therapySchedulerQueue' };
+            static saveAll(state) {
+                return ErrorHandler.handleStorageError(() => {
+                    localStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(state.settings));
+                    localStorage.setItem(this.KEYS.APPOINTMENTS, JSON.stringify(state.appointments));
+                    localStorage.setItem(this.KEYS.QUEUE, JSON.stringify(state.patientQueue));
+                    return true;
+                }, false);
+            }
+            static loadAll(initialState) {
+                return ErrorHandler.handleStorageError(() => {
+                    const settings = localStorage.getItem(this.KEYS.SETTINGS);
+                    const appointments = localStorage.getItem(this.KEYS.APPOINTMENTS);
+                    const patientQueue = localStorage.getItem(this.KEYS.QUEUE);
+                    return {
+                        settings: settings ? JSON.parse(settings) : initialState.settings,
+                        appointments: appointments ? JSON.parse(appointments) : [],
+                        patientQueue: patientQueue ? JSON.parse(patientQueue) : []
+                    };
+                }, { settings: initialState.settings, appointments: [], patientQueue: [] });
+            }
+        }
 
-                if (firstFitGap) {
-                    const placementTime = firstFitGap.start;
-                    const newAppointment = { ...patient, start: minutesTo24hTime(placementTime), completed: false };
-                    currentAppointments.push(newAppointment);
+        // === BUSINESS LOGIC / CALCULATIONS ===
+        class ScheduleCalculator {
+            static calculateAppointmentLayout(items) {
+                const appointments = items.filter(item => item.type === 'appointment');
+                const otherItems = items.filter(item => item.type !== 'appointment');
+                if (appointments.length === 0) return items;
+
+                appointments.forEach(a => a.layout = { conflicts: [], lane: undefined, totalLanes: 1 });
+
+                for (let i = 0; i < appointments.length; i++) {
+                    for (let j = i + 1; j < appointments.length; j++) {
+                        const appt1 = appointments[i];
+                        const appt2 = appointments[j];
+                        if (appt1.startMins < appt2.endMins && appt2.startMins < appt1.endMins) {
+                            appt1.layout.conflicts.push(appt2);
+                            appt2.layout.conflicts.push(appt1);
+                        }
+                    }
+                }
+
+                for (const appt of appointments) {
+                    const occupiedLanes = appt.layout.conflicts.map(c => c.layout.lane).filter(l => l !== undefined);
+                    let currentLane = 0;
+                    while (occupiedLanes.includes(currentLane)) { currentLane++; }
+                    appt.layout.lane = currentLane;
+                }
+
+                for (const appt of appointments) {
+                    let maxLaneInGroup = appt.layout.lane;
+                    for(const conflict of appt.layout.conflicts) {
+                        if (conflict.layout.lane > maxLaneInGroup) maxLaneInGroup = conflict.layout.lane;
+                    }
+                    appt.layout.totalLanes = maxLaneInGroup + 1;
+                }
+                
+                appointments.forEach(a => delete a.layout.conflicts);
+                return [...appointments, ...otherItems].sort((a, b) => a.startMins - b.startMins);
+            }
+
+            static calculateScheduleMetrics(state) {
+                try {
+                    const allScheduledItems = [
+                        ...state.settings.breaks.map(b => ({ ...b, type: 'break', startMins: TimeUtils.timeStringToMinutes(b.start), endMins: TimeUtils.timeStringToMinutes(b.end) })),
+                        ...state.settings.otherTasks.map(t => ({ ...t, type: t.type, startMins: TimeUtils.timeStringToMinutes(t.start), endMins: TimeUtils.timeStringToMinutes(t.end) })),
+                        ...state.appointments.map(a => ({ ...a, type: 'appointment', startMins: TimeUtils.timeStringToMinutes(a.start), endMins: TimeUtils.timeStringToMinutes(a.start) + a.duration }))
+                    ].sort((a, b) => a.startMins - b.startMins);
+
+                    const dayStartMins = TimeUtils.timeStringToMinutes(state.settings.workDay.startTime);
+                    let lastEnd = dayStartMins + state.settings.setupTime;
+                    allScheduledItems.forEach(item => {
+                        const effectiveEndMins = item.type === 'appointment' ? item.endMins + state.settings.transitionTime : item.endMins;
+                        lastEnd = Math.max(lastEnd, effectiveEndMins);
+                    });
+
+                    const gaps = this.calculateGaps(allScheduledItems, dayStartMins, state.settings);
+                    const metrics = this.calculateProductivityMetrics(state, allScheduledItems, lastEnd);
+                    const suggestions = this.generateSuggestions(state, gaps, lastEnd, metrics);
+
+                    return { 
+                        timelineItems: [...allScheduledItems, ...gaps.map(g => ({...g, startMins: g.start, endMins: g.end }))].sort((a,b) => a.startMins - b.startMins),
+                        ...metrics, 
+                        suggestions, 
+                        lastEndMins: lastEnd, 
+                        gaps 
+                    };
+                } catch (error) { ErrorHandler.logError(error, 'ScheduleCalculation'); return null; }
+            }
+            
+            static calculateGaps(allScheduledItems, dayStartMins, settings) {
+                const gaps = [];
+                let lastGapCheck = dayStartMins + settings.setupTime;
+                allScheduledItems.forEach(item => {
+                    if (item.startMins > lastGapCheck) {
+                        gaps.push({ id: `gap-${lastGapCheck}`, start: lastGapCheck, end: item.startMins, duration: item.startMins - lastGapCheck, type: 'gap' });
+                    }
+                    const effectiveEndMins = item.type === 'appointment' ? item.endMins + settings.transitionTime : item.endMins;
+                    lastGapCheck = Math.max(lastGapCheck, effectiveEndMins);
+                });
+                const dayEndMins = dayStartMins + (settings.workdayDurationHours * Constants.TIME.MINUTES_IN_HOUR);
+                if (dayEndMins > lastGapCheck) {
+                    gaps.push({ id: `gap-end-${lastGapCheck}`, start: lastGapCheck, end: dayEndMins, duration: dayEndMins - lastGapCheck, type: 'gap' });
+                }
+                return gaps;
+            }
+
+            static calculateProductivityMetrics(state, allScheduledItems, lastEnd) {
+                const totalTreatmentTime = state.appointments.reduce((sum, apt) => sum + apt.duration, 0);
+                const billableTaskTime = state.settings.otherTasks.filter(t => t.type === 'billable').reduce((sum, t) => sum + (TimeUtils.timeStringToMinutes(t.end) - TimeUtils.timeStringToMinutes(t.start)), 0);
+                
+                const totalBillableTime = totalTreatmentTime + billableTaskTime;
+                
+                let projectedClockOutMins = 0, productivity = 0;
+                const dayStartMins = TimeUtils.timeStringToMinutes(state.settings.workDay.startTime);
+
+                if (state.settings.productivityTarget > 0 && totalBillableTime > 0) {
+                    const requiredTotalWorkTime = (totalBillableTime / (state.settings.productivityTarget / 100));
+                    projectedClockOutMins = dayStartMins + requiredTotalWorkTime;
+                    
+                    const totalMinutesOnJob = lastEnd - dayStartMins;
+                    if (totalMinutesOnJob > 0) {
+                        productivity = ((totalBillableTime / totalMinutesOnJob) * 100).toFixed(1);
+                    }
+                }
+                
+                return { 
+                    totalBillableTime, 
+                    projectedClockOutMins, 
+                    productivity, 
+                    meetsTarget: projectedClockOutMins > 0 && lastEnd >= projectedClockOutMins 
+                };
+            }
+
+            static generateSuggestions(state, gaps, lastEnd, metrics) {
+                const suggestions = [];
+                if (metrics.projectedClockOutMins > 0) {
+                    suggestions.push(`To meet your <b>${state.settings.productivityTarget}% target</b>, you can clock out around <b>${TimeUtils.minutesToTime(metrics.projectedClockOutMins)}</b>.`);
+                    
+                    if (lastEnd > metrics.projectedClockOutMins) {
+                        suggestions.push(`Note: Your last task ends at <b>${TimeUtils.minutesToTime(lastEnd)}</b>, but you've already met your productivity goal for the time worked.`);
+                    }
+
                 } else {
-                    unschedulable.push(patient);
+                    suggestions.push(`Add a billable session to calculate your productivity and target clock-out time.`);
                 }
-            });
 
-            state.appointments = currentAppointments.sort((a,b) => timeStringToMinutes(a.start) - timeStringToMinutes(b.start));
-            state.patientQueue = unschedulable.map(item => ({id: item.id, name: item.name, duration: item.duration}));
-            
-            const scheduledCount = itemsToSchedule.length - unschedulable.length;
+                if (state.patientQueue.length > 0 && gaps.length > 0) {
+                    const smallestPatientDuration = Math.min(...state.patientQueue.map(p => p.duration));
+                    const suitableGap = gaps.find(g => g.duration >= smallestPatientDuration + state.settings.transitionTime);
+                    if (suitableGap) {
+                        suggestions.push(`You have a <b>${suitableGap.duration} min gap</b> at ${TimeUtils.minutesToTime(suitableGap.start)} large enough for a queued session.`);
+                    }
+                }
+                
+                if (lastEnd > Constants.LATE_WORK_THRESHOLD_HOUR * Constants.TIME.MINUTES_IN_HOUR) {
+                    suggestions.push(`<b>Warning:</b> Your current schedule ends at <b>${TimeUtils.minutesToTime(lastEnd)}</b>.`);
+                }
+                return suggestions;
+            }
+        }
+        
+        // === APPLICATION CONTROLLER ===
+        class TherapySchedulerApp {
+            constructor() {
+                this.stateManager = new StateManager();
+                this.renderer = new AppRenderer();
+                this.eventHandler = new EventHandler(this.stateManager, this);
+                this.stateManager.subscribe(() => this.renderer.update(this.stateManager.state));
+                this.init();
+            }
+            init() {
+                try {
+                    this.renderer.initialRender();
+                    const loadedData = StorageManager.loadAll(this.stateManager.state);
+                    const allPatients = [...(loadedData.appointments || []), ...(loadedData.patientQueue || [])];
+                    const maxId = allPatients.reduce((max, patient) => {
+                        const num = parseInt(patient.name?.replace('P', ''), 10);
+                        return isNaN(num) ? max : Math.max(max, num);
+                    }, 0);
+                    
+                    this.updateStateAndSchedule({ ...loadedData, ui: { patientCounter: maxId + 1 } });
+                } catch (error) { ErrorHandler.logError(error, 'AppInit'); }
+            }
 
-            if (scheduledCount > 0) {
-                 setNotification(`Scheduled ${scheduledCount} patients. ${unschedulable.length > 0 ? `${unschedulable.length} could not fit and remain in queue.` : ''}`, 'success');
-            } else {
-                setNotification('Could not schedule any patients. Check for existing conflicts or short gaps.', 'error');
+            updateStateAndSchedule(updates) {
+                this.stateManager.setState(updates, false); // Update state without notifying yet
+                const nextState = this.stateManager.state;
+                const schedule = ScheduleCalculator.calculateScheduleMetrics(nextState);
+                
+                const { productivityCalculator } = nextState;
+                let newProdCalc = { ...productivityCalculator };
+                // Only auto-update the calculator's end time if it hasn't been manually set from the default
+                if (schedule && schedule.projectedClockOutMins > 0 && productivityCalculator.endTime === Constants.DEFAULT_END_TIME) {
+                    newProdCalc.endTime = TimeUtils.minutesTo24hTime(schedule.projectedClockOutMins);
+                }
+                
+                this.stateManager.setState({ schedule, productivityCalculator: newProdCalc }, true); // Now update schedule and notify
             }
             
-            render();
-        }
-
-        function init() {
-            try {
-                let maxId = 0;
-                const savedSettings = localStorage.getItem('therapySchedulerSettings');
-                if (savedSettings) state.settings = JSON.parse(savedSettings);
-
-                const savedAppointments = localStorage.getItem('therapySchedulerAppointments');
-                if (savedAppointments) {
-                     state.appointments = JSON.parse(savedAppointments);
-                     state.appointments.forEach(a => {
-                         const num = parseInt(a.name?.replace('P', ''), 10);
-                         if (!isNaN(num) && num > maxId) maxId = num;
-                    });
+            saveAll() {
+                if (StorageManager.saveAll(this.stateManager.state)) {
+                    NotificationSystem.show('Settings and schedule saved!', 'success');
                 }
-                const savedQueue = localStorage.getItem('therapySchedulerQueue');
-                if (savedQueue) {
-                    state.patientQueue = JSON.parse(savedQueue);
-                    state.patientQueue.forEach(p => {
-                        const num = parseInt(p.name?.replace('P', ''), 10);
-                        if (!isNaN(num) && num > maxId) maxId = num;
-                    });
+            }
+        }
+        
+        // === UI EVENT HANDLING (REVISED) ===
+        class EventHandler {
+            constructor(stateManager, app) {
+                this.stateManager = stateManager;
+                this.app = app;
+                this.root = document.getElementById('app-root');
+                this.setupDelegatedEvents();
+            }
+            
+            setupDelegatedEvents() {
+                this.root.addEventListener('click', this.handleClick.bind(this));
+                this.root.addEventListener('input', this.handleInput.bind(this));
+                this.root.addEventListener('keydown', this.handleKeydown.bind(this));
+                this.root.addEventListener('dragstart', this.handleDragStart.bind(this));
+                this.root.addEventListener('dragend', () => this.stateManager.setState({ dragState: { ...this.stateManager.state.dragState, draggedPatientId: null } }, false));
+                this.root.addEventListener('dragover', (e) => { if (e.target.closest('.timeline-gap, #timeline-droppable')) e.preventDefault(); });
+                this.root.addEventListener('drop', this.handleDrop.bind(this));
+                this.root.addEventListener('blur', this.handleBlur.bind(this), true);
+            }
+            
+            handleClick(e) {
+                const btn = e.target.closest('button');
+                if (!btn) return;
+                
+                const { modals } = this.stateManager.state;
+                const action = btn.dataset.action;
+                const id = btn.dataset.id;
+
+                switch(action) {
+                    case Constants.ACTIONS.SAVE: this.app.saveAll(); break;
+                    case Constants.ACTIONS.PRINT: window.print(); break;
+                    case Constants.ACTIONS.CLEAR_DAY: this.stateManager.setState({ modals: { ...modals, clearDay: true }}); break;
+                    case Constants.ACTIONS.CONFIRM_CLEAR: this.clearDay(); break;
+                    case Constants.ACTIONS.CANCEL_CLEAR: this.stateManager.setState({ modals: { ...modals, clearDay: false }}); break;
+                    case Constants.ACTIONS.ADD_PATIENT: this.addPatient(); break;
+                    case Constants.ACTIONS.ADD_PATIENT_PRESET: this.addPatientToQueue(parseInt(btn.dataset.duration)); break;
+                    case Constants.ACTIONS.REMOVE_PATIENT: this.removePatientFromQueue(btn.closest('[data-patient-id]').dataset.patientId); break;
+                    case Constants.ACTIONS.AUTO_SCHEDULE: this.autoSchedule(); break;
+                    case Constants.ACTIONS.EDIT_APPOINTMENT: this.openEditModal(btn.closest('[data-id]').dataset.id); break;
+                    case Constants.ACTIONS.TOGGLE_COMPLETE: this.toggleAppointmentComplete(btn.closest('[data-id]').dataset.id); break;
+                    case Constants.ACTIONS.DELETE_APPOINTMENT: this.removeAppointment(btn.closest('[data-id]').dataset.id); break;
+                    case Constants.ACTIONS.CANCEL_EDIT: this.stateManager.setState({ modals: { ...modals, editAppointment: false, editingAppointment: null }}); break;
+                    case Constants.ACTIONS.SAVE_EDIT: this.saveAppointmentChanges(); break;
+                    case Constants.ACTIONS.ADD_BREAK: this.addListItem('breaks', { start: '12:00', end: '12:30', label: 'New Break'}); break;
+                    case Constants.ACTIONS.ADD_TASK: this.addListItem('otherTasks', { start: '15:00', end: '15:30', label: 'New Task', type: 'non-billable'}); break;
+                    case Constants.ACTIONS.DELETE_BREAK: this.removeListItem('breaks', id); break;
+                    case Constants.ACTIONS.DELETE_TASK: this.removeListItem('otherTasks', id); break;
+                    case Constants.ACTIONS.ADJUST_TIME:
+                        const { amount } = btn.dataset;
+                        const timeContainer = btn.closest('.flex.items-center.gap-2').querySelector('.custom-time-input');
+                        this.adjustTime(timeContainer, parseInt(amount));
+                        break;
                 }
-                state.patientCounter = maxId + 1;
 
-            } catch(e) {
-                console.error("Failed to load from localStorage", e);
+                if (btn.classList.contains('am-pm-btn')) {
+                    const timeContainer = btn.closest('.custom-time-input');
+                    this.updateTimeFromUI(timeContainer);
+                }
             }
-            addEventListeners();
-            render();
-        }
 
-        function renderNotification(notification) {
-            const container = document.getElementById('notification-container');
-            if (!notification.message) { container.innerHTML = ''; return; }
-            const typeClasses = { success: "bg-gray-800 border-green-500 text-green-300", error: "bg-gray-800 border-red-500 text-red-300" };
-            const Icon = notification.type === 'success' ? getIcon('CheckCircle', 20) : getIcon('AlertCircle', 20);
-            container.innerHTML = `<div class="fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg animate-fade-in-down border ${typeClasses[notification.type]}">${Icon}<span>${notification.message}</span><button id="dismiss-notification-btn" class="ml-4 p-1 rounded-full hover:bg-white/10">${getIcon('X', 16)}</button></div>`;
-        }
-        
-        function checkForConflicts(editingApptId, newStartMins, newDuration) {
-            const newEndMins = newStartMins + newDuration + state.settings.transitionTime;
-
-            const allOtherEvents = [
-                ...state.appointments.filter(a => a.id !== editingApptId),
-                ...state.settings.breaks,
-                ...state.settings.otherTasks
-            ].map(ev => {
-                const startMins = timeStringToMinutes(ev.start);
-                const endMins = ev.duration ? (startMins + ev.duration + state.settings.transitionTime) : timeStringToMinutes(ev.end);
-                return { startMins, endMins };
-            }).sort((a, b) => a.startMins - b.startMins);
-
-            const nextEvent = allOtherEvents.find(ev => ev.startMins >= newStartMins);
-
-            if (nextEvent && newEndMins > nextEvent.startMins) {
-                return true; // Conflict detected
+            handleInput(e) {
+                const { value, dataset, id } = e.target;
+                 if (id === 'edit-duration-input') {
+                    this._handleModalInputChange({ duration: value });
+                } else if (dataset.field) {
+                    this.handleSettingChange(e.target);
+                } else if (id === 'extra-minutes-input') {
+                    const updates = { productivityCalculator: { ...this.stateManager.state.productivityCalculator, extraMinutes: value } };
+                    this.app.updateStateAndSchedule(updates);
+                }
             }
-            return false; // No conflict
+
+            handleBlur(e) {
+                const { target } = e;
+                if (target.classList.contains('time-input-hour') || target.classList.contains('time-input-minute')) {
+                    const container = target.closest('.custom-time-input');
+                    if (container && !container.contains(e.relatedTarget)) {
+                        this.updateTimeFromUI(container);
+                    }
+                }
+                if (e.target.dataset.field) {
+                    this.handleSettingChange(e.target);
+                }
+            }
+
+            handleKeydown(e) {
+                if (e.key === 'Enter') {
+                    if (e.target.id === 'patient-duration-input') { e.preventDefault(); this.addPatient(); }
+                    else if (e.target.closest('#modal-container')) { e.preventDefault(); this.saveAppointmentChanges(); }
+                }
+            }
+
+            handleDragStart(e) {
+                const patientItem = e.target.closest('[data-patient-id]');
+                const apptItem = e.target.closest('[data-id^="appt-"]');
+                let draggedId = null;
+                if (patientItem) draggedId = patientItem.dataset.patientId;
+                else if (apptItem) draggedId = apptItem.dataset.id;
+
+                if (draggedId) {
+                    this.stateManager.setState({ dragState: { ...this.stateManager.state.dragState, draggedPatientId: draggedId } }, false);
+                }
+            }
+
+            handleDrop(e) {
+                e.preventDefault();
+                const gapEl = e.target.closest('.timeline-gap');
+                const { draggedPatientId } = this.stateManager.state.dragState;
+                const { appointments, patientQueue, settings } = this.stateManager.state;
+                const patientData = patientQueue.find(p => p.id === draggedPatientId) || appointments.find(a => a.id === draggedPatientId);
+                
+                if (gapEl && patientData) {
+                    const gap = { start: parseInt(gapEl.dataset.start), duration: parseInt(gapEl.dataset.duration) };
+                    if (gap.duration >= patientData.duration + settings.transitionTime) {
+                        const newStart = TimeUtils.minutesTo24hTime(gap.start);
+                        const isExistingAppointment = appointments.some(a => a.id === draggedPatientId);
+                        
+                        let newAppointments;
+                        if (isExistingAppointment) {
+                            newAppointments = appointments.map(a => a.id === draggedPatientId ? { ...a, start: newStart } : a);
+                        } else {
+                            newAppointments = [...appointments, { ...patientData, id:`appt-${Date.now()}`, start: newStart, completed: false }];
+                        }
+                        
+                        const newQueue = patientQueue.filter(p => p.id !== draggedPatientId);
+                        
+                        this.app.updateStateAndSchedule({
+                            appointments: newAppointments.sort((a,b) => TimeUtils.timeStringToMinutes(a.start) - TimeUtils.timeStringToMinutes(b.start)),
+                            patientQueue: newQueue
+                        });
+                    } else {
+                        NotificationSystem.show(`Session (${patientData.duration}m) does not fit in gap (${gap.duration}m).`, 'error');
+                    }
+                }
+                this.stateManager.setState({ dragState: { ...this.stateManager.state.dragState, draggedPatientId: null } }, false);
+            }
+            
+            autoSchedule() {
+                let { patientQueue, appointments, settings } = this.stateManager.state;
+                if (patientQueue.length === 0) {
+                    NotificationSystem.show("Patient queue is empty.", "info");
+                    return;
+                }
+                const sortedQueue = [...patientQueue].sort((a, b) => b.duration - a.duration);
+                const newAppointments = [...appointments];
+                const scheduledPatientIds = new Set();
+                
+                sortedQueue.forEach(patient => {
+                    const tempState = { ...this.stateManager.state, appointments: newAppointments, patientQueue: [] };
+                    const tempSchedule = ScheduleCalculator.calculateScheduleMetrics(tempState);
+                    
+                    const requiredDuration = patient.duration + settings.transitionTime;
+                    const suitableGap = tempSchedule.gaps.find(g => g.duration >= requiredDuration);
+                    if (suitableGap) {
+                        newAppointments.push({ ...patient, id: `appt-${Date.now()}-${patient.id}`, start: TimeUtils.minutesTo24hTime(suitableGap.start), completed: false });
+                        scheduledPatientIds.add(patient.id);
+                    }
+                });
+                
+                if (scheduledPatientIds.size > 0) {
+                    this.app.updateStateAndSchedule({ 
+                        appointments: newAppointments, 
+                        patientQueue: patientQueue.filter(p => !scheduledPatientIds.has(p.id)) 
+                    });
+                    NotificationSystem.show(`${scheduledPatientIds.size} patient(s) auto-scheduled!`, "success");
+                } else {
+                    NotificationSystem.show("No suitable gaps found to schedule patients.", "warning");
+                }
+            }
+
+            addPatient() {
+                const input = document.getElementById('patient-duration-input');
+                if (!input || !input.value) return;
+                this.addPatientToQueue(parseInt(input.value));
+                input.value = '';
+            }
+            
+            addPatientToQueue(duration) {
+                if (!SecurityUtils.validateDuration(duration)) {
+                    NotificationSystem.show(`Duration must be between ${Constants.MINIMUM_SCHEDULABLE_DURATION} and ${Constants.MAXIMUM_SCHEDULABLE_DURATION} minutes.`, 'error');
+                    return;
+                }
+                const { patientQueue, ui } = this.stateManager.state;
+                const newPatient = { id: `p${Date.now()}`, name: `P${ui.patientCounter}`, duration };
+                this.app.updateStateAndSchedule({
+                    patientQueue: [...patientQueue, newPatient],
+                    ui: { ...ui, patientCounter: ui.patientCounter + 1 }
+                });
+                NotificationSystem.show(`Patient ${newPatient.name} added to queue.`, 'success');
+            }
+            
+            removePatientFromQueue(id) {
+                const { patientQueue } = this.stateManager.state;
+                this.app.updateStateAndSchedule({ patientQueue: patientQueue.filter(p => p.id !== id) });
+            }
+
+            openEditModal(id) {
+                const appointment = this.stateManager.state.appointments.find(a => a.id === id);
+                if (appointment) {
+                    const startMins = TimeUtils.timeStringToMinutes(appointment.start);
+                    const endMins = startMins + appointment.duration;
+                    const editingAppointment = { ...appointment, end: TimeUtils.minutesTo24hTime(endMins) };
+                    this.stateManager.setState({ modals: { ...this.stateManager.state.modals, editAppointment: true, editingAppointment }});
+                }
+            }
+            
+            _handleModalInputChange(updates) {
+                const { modals } = this.stateManager.state;
+                let newAppointmentState = { ...modals.editingAppointment, ...updates };
+                const changedKey = Object.keys(updates)[0];
+
+                let startMins = TimeUtils.timeStringToMinutes(newAppointmentState.start);
+                let duration = parseInt(newAppointmentState.duration, 10);
+                let endMins = TimeUtils.timeStringToMinutes(newAppointmentState.end);
+
+                if (changedKey === 'start') {
+                    endMins = startMins + duration;
+                    newAppointmentState.end = TimeUtils.minutesTo24hTime(endMins);
+                } else if (changedKey === 'duration') {
+                    duration = isNaN(duration) ? 0 : duration;
+                    endMins = startMins + duration;
+                    newAppointmentState.end = TimeUtils.minutesTo24hTime(endMins);
+                } else if (changedKey === 'end') {
+                    duration = endMins - startMins;
+                    if (duration < 0) duration = 0;
+                    newAppointmentState.duration = duration;
+                }
+                this.stateManager.setState({ modals: { ...modals, editingAppointment: newAppointmentState }});
+            }
+
+            saveAppointmentChanges() {
+                const { editingAppointment } = this.stateManager.state.modals;
+                
+                if (!SecurityUtils.validateDuration(editingAppointment.duration)) {
+                    NotificationSystem.show('Invalid duration. Must be at least 5 minutes.', 'error'); return;
+                }
+                
+                const updatedAppointment = { ...editingAppointment };
+                delete updatedAppointment.end; // Remove temporary 'end' property
+                
+                const conflict = ConflictDetector.checkForConflicts(updatedAppointment, this.stateManager.state, editingAppointment.id);
+
+                if (conflict.hasConflict) {
+                    NotificationSystem.show(`Change conflicts with ${conflict.conflictItem.label || conflict.conflictItem.name}.`, 'error');
+                    return;
+                }
+                
+                const updatedAppointments = this.stateManager.state.appointments.map(apt => 
+                    apt.id === editingAppointment.id ? updatedAppointment : apt
+                );
+                
+                this.app.updateStateAndSchedule({ 
+                    appointments: updatedAppointments,
+                    modals: { ...this.stateManager.state.modals, editAppointment: false, editingAppointment: null }
+                });
+                NotificationSystem.show('Session updated!', 'success');
+            }
+
+            toggleAppointmentComplete(id) {
+                const updatedAppointments = this.stateManager.state.appointments.map(apt => 
+                    apt.id === id ? { ...apt, completed: !apt.completed } : apt
+                );
+                this.app.updateStateAndSchedule({ appointments: updatedAppointments });
+            }
+            
+            removeAppointment(id) {
+                const appointmentToRemove = this.stateManager.state.appointments.find(a => a.id === id);
+                if (!appointmentToRemove) return;
+                
+                const newAppointments = this.stateManager.state.appointments.filter(a => a.id !== id);
+                const newPatientQueue = [...this.stateManager.state.patientQueue];
+                const patientInQueue = newPatientQueue.find(p => p.name === appointmentToRemove.name);
+
+                if (!patientInQueue) {
+                     newPatientQueue.unshift({ id: `p${Date.now()}`, name: appointmentToRemove.name, duration: appointmentToRemove.duration });
+                }
+                
+                this.app.updateStateAndSchedule({ appointments: newAppointments, patientQueue: newPatientQueue });
+            }
+
+            addListItem(listName, itemData) {
+                const newItem = { ...itemData, id: `${listName.slice(0, -1)}-${Date.now()}` };
+                
+                const conflict = ConflictDetector.checkForConflicts(newItem, this.stateManager.state);
+                if (conflict.hasConflict) {
+                    NotificationSystem.show(`New item conflicts with ${conflict.conflictItem.label || conflict.conflictItem.name}.`, 'error');
+                    return;
+                }
+
+                const list = this.stateManager.state.settings[listName] || [];
+                const updates = { settings: { ...this.stateManager.state.settings, [listName]: [...list, newItem] } };
+                this.app.updateStateAndSchedule(updates);
+            }
+
+            removeListItem(listName, id) {
+                const list = this.stateManager.state.settings[listName] || [];
+                const updates = { settings: { ...this.stateManager.state.settings, [listName]: list.filter(item => String(item.id) !== id) } };
+                this.app.updateStateAndSchedule(updates);
+            }
+
+            handleSettingChange(target) {
+                const { dataset, value, type } = target;
+                const val = type === 'number' ? parseInt(value) || 0 : value;
+                let updates;
+
+                if (dataset.list && dataset.id && dataset.field) {
+                    const list = this.stateManager.state.settings[dataset.list];
+                    const updatedList = list.map(item => String(item.id) === dataset.id ? { ...item, [dataset.field]: val } : item);
+                    updates = { settings: { ...this.stateManager.state.settings, [dataset.list]: updatedList }};
+                } else if (dataset.field) {
+                    updates = { settings: { ...this.stateManager.state.settings, [dataset.field]: val }};
+                }
+                if(updates) this.app.updateStateAndSchedule(updates);
+            }
+
+            get24hTimeFromUI(container) {
+                if (!container) return null;
+                const hourInput = container.querySelector('.time-input-hour');
+                const minuteInput = container.querySelector('.time-input-minute');
+                const amButton = container.querySelector('.am-pm-btn[data-period="AM"]');
+                let hour12 = parseInt(hourInput.value) || 12;
+                const minute = parseInt(minuteInput.value) || 0;
+                const period = amButton.classList.contains('bg-yellow-500') ? 'AM' : 'PM';
+                let hour24 = hour12;
+                if (period === 'PM' && hour12 < 12) hour24 += 12;
+                if (period === 'AM' && hour12 === 12) hour24 = 0;
+                return TimeUtils.minutesTo24hTime(hour24 * 60 + minute);
+            }
+            
+            _updateTimeValue(id, newTime) {
+                const parts = id.split('.');
+                
+                if (parts[0] === 'edit') {
+                    this._handleModalInputChange({ [parts[1]]: newTime });
+                    return;
+                }
+            
+                let updates = {};
+            
+                if (parts[0] === 'productivity') {
+                    updates = { productivityCalculator: { ...this.stateManager.state.productivityCalculator, endTime: newTime }};
+                } else {
+                    const oldSettings = this.stateManager.state.settings;
+                    const listName = parts[0];
+                    const field = parts[parts.length - 1];
+                    
+                    if (parts.length === 2 && listName === 'workDay') {
+                        updates = { settings: { ...oldSettings, workDay: { ...oldSettings.workDay, [field]: newTime } } };
+                    } else if (parts.length === 3) {
+                        const itemId = parts[1];
+                        const tempList = [...oldSettings[listName]];
+                        const itemIndex = tempList.findIndex(i => String(i.id) === itemId);
+                        
+                        if (itemIndex > -1) {
+                            const tempItem = {...tempList[itemIndex], [field]: newTime};
+                            
+                            const startMins = TimeUtils.timeStringToMinutes(field === 'start' ? newTime : tempItem.start);
+                            const endMins = TimeUtils.timeStringToMinutes(field === 'end' ? newTime : tempItem.end);
+            
+                            if (endMins < startMins) {
+                                NotificationSystem.show('End time cannot be before start time.', 'error');
+                                this.app.updateStateAndSchedule({});
+                                return;
+                            }
+                            
+                            const conflict = ConflictDetector.checkForConflicts(tempItem, this.stateManager.state, itemId);
+                            if(conflict.hasConflict) {
+                                NotificationSystem.show(`Change conflicts with ${conflict.conflictItem.label || conflict.conflictItem.name}.`, 'error');
+                                this.app.updateStateAndSchedule({});
+                                return;
+                            }
+                            
+                            tempList[itemIndex] = tempItem;
+                            updates = { settings: { ...oldSettings, [listName]: tempList }};
+                        }
+                    }
+                }
+                
+                if (Object.keys(updates).length > 0) {
+                    this.app.updateStateAndSchedule(updates);
+                }
+            }
+
+            updateTimeFromUI(container) {
+                const id = container.dataset.id;
+                const newTime = this.get24hTimeFromUI(container);
+                this._updateTimeValue(id, newTime);
+            }
+            
+            adjustTime(container, amount) {
+                if (!container) return;
+                const timeInMinutes = TimeUtils.timeStringToMinutes(this.get24hTimeFromUI(container));
+                const adjustedTime = TimeUtils.minutesTo24hTime(timeInMinutes + amount);
+                const id = container.dataset.id;
+                this._updateTimeValue(id, adjustedTime);
+            }
+
+            clearDay() {
+                this.app.updateStateAndSchedule({ 
+                    appointments: [], 
+                    patientQueue: [], 
+                    ui: { ...this.stateManager.state.ui, patientCounter: 1 },
+                    modals: { ...this.stateManager.state.modals, clearDay: false }
+                });
+                NotificationSystem.show('Your schedule has been cleared.', 'success');
+            }
         }
 
 
-        function renderModals(isClearModalOpen, isEditModalOpen, appointment) {
-             const container = document.getElementById('modal-container');
-             container.innerHTML = '';
-             if (isClearModalOpen) container.innerHTML = `<div class="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4"><div class="bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-8 w-full max-w-lg animate-fade-in-down"><div class="flex justify-between items-center mb-4"><h2 class="text-2xl font-bold text-yellow-400">Confirm Clear Day</h2><button id="close-clear-modal-btn" class="p-1 rounded-full text-gray-400 hover:bg-gray-700">${getIcon('X', 20)}</button></div><div class="text-base text-gray-300 mb-6">Are you sure you want to clear all scheduled appointments and the patient queue? This action cannot be undone.</div><div class="flex justify-end gap-3"><button id="cancel-clear-btn" class="px-4 py-2 bg-gray-600 text-gray-200 rounded-lg hover:bg-gray-500">Cancel</button><button id="confirm-clear-btn" class="px-4 py-2 bg-red-800/80 text-red-200 rounded-lg hover:bg-red-700/80">Confirm</button></div></div></div>`;
-             if (isEditModalOpen && appointment) {
-                 const startTimeMins = timeStringToMinutes(appointment.start);
-                 const endTime = minutesTo24hTime(startTimeMins + appointment.duration);
+        // === UI RENDERER ===
+        class AppRenderer {
+            constructor() {
+                this.root = document.getElementById('app-root');
+                this.initialScrollDone = false;
+            }
+            initialRender() {
+                this.root.innerHTML = `
+                    <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 min-h-screen printable-area">
+                        <div id="notification-container"></div>
+                        <div id="modal-container"></div>
+                        <div id="header-container" class="no-print"></div>
+                        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                            <div class="lg:col-span-1 space-y-6 no-print">
+                                <div id="patient-queue-container"></div>
+                                <div id="settings-panel-container"></div>
+                            </div>
+                            <div class="lg:col-span-4 space-y-6">
+                                <div id="day-summary-container"></div>
+                                <div id="schedule-timeline-container"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            update(state) {
+                // Preserve the open state of all details elements before re-rendering
+                const openDetails = {};
+                this.root.querySelectorAll('details').forEach(el => {
+                    if (el.id) openDetails[el.id] = el.open;
+                });
 
-                 container.innerHTML = `<div class="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4"><div class="bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-8 w-full max-w-lg animate-fade-in-down"><div class="flex justify-between items-center mb-4"><h2 class="text-2xl font-bold text-yellow-400">Edit Session: ${appointment.name}</h2><button id="close-edit-modal-btn" class="p-1 rounded-full text-gray-400 hover:bg-gray-700">${getIcon('X', 20)}</button></div><div class="mb-6 space-y-4">
-                        <div class="flex items-end gap-4">
+                this._renderHeader();
+                this._renderModals(state.modals);
+                this._renderPatientQueue(state.patientQueue);
+                this._renderSettingsPanel(state.settings);
+                this._renderDaySummary(state.schedule, state.appointments, state.patientQueue, state.settings, state.productivityCalculator);
+                this._renderScheduleTimeline(state.schedule, state.settings);
+
+                // Restore the open state after rendering
+                for (const id in openDetails) {
+                    const detailEl = this.root.querySelector(`#${id}`);
+                    if (detailEl) detailEl.open = openDetails[id];
+                }
+            }
+            
+            _renderHeader() {
+                document.getElementById('header-container').innerHTML = `
+                    <div class="bg-gray-800 rounded-lg shadow-lg p-4 sm:p-6 mb-6 border border-gray-700">
+                        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
                             <div>
-                                <label class="block text-base font-medium text-gray-300 mb-2">Start Time</label>
-                                <div id="edit-start-time-container">${renderCustomTimeInput(appointment.start, 'edit.startTime')}</div>
+                                <h1 class="text-3xl sm:text-4xl font-bold text-gray-100 mb-2 flex items-center gap-2">
+                                    <span class="text-yellow-400">${getIcon('Calendar', 28)}</span>
+                                    Interactive Therapy Scheduler
+                                </h1>
+                                <p class="text-base text-gray-400">Add patients, then drag them to the timeline or use the optimizer.</p>
                             </div>
-                            <div>
-                                <label class="block text-base font-medium text-gray-300 mb-2">End Time</label>
-                                <div id="edit-end-time-container">${renderCustomTimeInput(endTime, 'edit.endTime')}</div>
-                            </div>
-                        </div>
-                        <div>
-                            <label for="duration-input" class="block text-base font-medium text-gray-300">Duration (in minutes):</label>
-                            <input id="edit-duration-input" type="number" value="${appointment.duration}" class="w-full px-3 py-2 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-yellow-500 focus:border-yellow-500" />
-                        </div>
-                        <div id="conflict-warning" class="hidden items-center gap-2 text-sm text-yellow-300 p-2 bg-yellow-500/10 rounded-md border border-yellow-500/30">
-                            ${getIcon('AlertCircle', 16)} 
-                            <span>This change will push subsequent appointments.</span>
-                        </div>
-                    </div><div class="flex justify-end gap-3"><button id="cancel-edit-btn" class="px-4 py-2 bg-gray-600 text-gray-200 rounded-lg hover:bg-gray-500">Cancel</button><button id="save-edit-btn" class="px-4 py-2 bg-yellow-500 text-gray-900 font-semibold rounded-lg hover:bg-yellow-400">Save Changes</button></div></div></div>`;
-             }
-        }
-
-        function renderPatientQueue(queue) {
-            const container = document.getElementById('patient-queue-container');
-            container.innerHTML = `
-                <div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
-                    <h2 class="text-2xl font-semibold text-gray-200 mb-4 flex items-center gap-2"><span class="text-yellow-400">${getIcon('Clock', 20)}</span>Patient Queue (${queue.length})</h2>
-                    <div class="flex gap-2 mb-2">
-                        <input id="patient-duration-input" type="number" placeholder="Duration (min)" class="w-full px-3 py-2 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-yellow-500 focus:border-yellow-500" />
-                        <button id="add-patient-btn" class="px-4 py-2 bg-yellow-500 text-gray-900 font-semibold rounded-lg hover:bg-yellow-400 shrink-0">${getIcon('Plus', 16)}</button>
-                    </div>
-                    <div class="grid grid-cols-4 gap-2 mb-4">
-                        <button class="add-patient-preset-btn w-full py-1 text-base bg-gray-700 text-gray-300 rounded hover:bg-gray-600" data-duration="38">+38</button>
-                        <button class="add-patient-preset-btn w-full py-1 text-base bg-gray-700 text-gray-300 rounded hover:bg-gray-600" data-duration="30">+30</button>
-                        <button class="add-patient-preset-btn w-full py-1 text-base bg-gray-700 text-gray-300 rounded hover:bg-gray-600" data-duration="53">+53</button>
-                        <button class="add-patient-preset-btn w-full py-1 text-base bg-gray-700 text-gray-300 rounded hover:bg-gray-600" data-duration="25">+25</button>
-                    </div>
-                    <div id="patient-list" class="space-y-2 max-h-48 overflow-y-auto p-1 bg-gray-900/50 rounded min-h-[4rem]">
-                        ${queue.map(p => `<div draggable="true" class="patient-item flex justify-between items-center p-2 rounded-md shadow-sm cursor-grab active:cursor-grabbing border ${getAppointmentColor(p.duration)}" data-patient-id="${p.id}"><span class="font-semibold text-base">${p.name} (${p.duration} min)</span><button class="remove-patient-btn p-1 hover:bg-white/10 rounded-full" data-patient-id="${p.id}">${getIcon('Trash2', 14)}</button></div>`).join('')}
-                    </div>
-                    <button id="auto-schedule-btn" class="w-full mt-4 py-2 px-4 bg-gray-700 text-yellow-300 font-semibold rounded-lg hover:bg-gray-600 flex items-center justify-center gap-2">${getIcon('Zap')} Optimize Schedule</button>
-                </div>`;
-        }
-        
-        function renderCustomTimeInput(value, id) {
-            const totalMinutes = timeStringToMinutes(value);
-            const hours24 = Math.floor(totalMinutes / 60) % 24;
-            const minute = totalMinutes % 60;
-            const period = hours24 >= 12 ? 'PM' : 'AM';
-            let hour12 = hours24 % 12;
-            if (hour12 === 0) hour12 = 12;
-
-            return `
-                <div class="flex items-center gap-2">
-                    <div class="custom-time-input flex items-center bg-gray-700 border border-gray-600 text-gray-200 rounded-md p-1" data-id="${id}">
-                        <input type="number" value="${hour12}" class="time-input-hour w-10 bg-transparent text-center focus:outline-none" min="1" max="12" data-unit="hour">
-                        <span class="font-bold text-gray-500">:</span>
-                        <input type="number" value="${String(minute).padStart(2, '0')}" class="time-input-minute w-10 bg-transparent text-center focus:outline-none" min="0" max="59" data-unit="minute">
-                        <div class="flex flex-col border-l border-gray-600 ml-1 pl-1 self-stretch">
-                            <button class="am-pm-btn text-xs rounded-sm flex-1 flex items-center justify-center ${period === 'AM' ? 'bg-yellow-500 text-gray-900 font-semibold' : 'hover:bg-gray-600 text-gray-400'}" data-period="AM" data-unit="AM">AM</button>
-                            <button class="am-pm-btn text-xs rounded-sm flex-1 flex items-center justify-center ${period === 'PM' ? 'bg-yellow-500 text-gray-900 font-semibold' : 'hover:bg-gray-600 text-gray-400'}" data-period="PM" data-unit="PM">PM</button>
-                        </div>
-                    </div>
-                    ${id.startsWith('edit.') ? '' : `<div class="flex flex-col border border-gray-600 rounded-md overflow-hidden">
-                        <button class="time-adjust-btn px-2 text-base bg-gray-800 text-gray-300 hover:bg-gray-700 border-b border-gray-600" data-id="${id}" data-amount="1" title="Add 1 minute">+</button>
-                        <button class="time-adjust-btn px-2 text-base bg-gray-800 text-gray-300 hover:bg-gray-700" data-id="${id}" data-amount="-1" title="Subtract 1 minute">-</button>
-                    </div>`}
-                </div>
-            `;
-        }
-
-        function renderSettingsPanel(settings) {
-            const container = document.getElementById('settings-panel-container');
-            container.innerHTML = `
-                <details class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700" ${state.ui.isBreaksPanelOpen ? 'open' : ''}>
-                    <summary class="font-semibold text-xl text-gray-200 cursor-pointer" data-panel-id="breaks">Work Day & Breaks</summary>
-                    <div class="mt-4 space-y-4">
-                        <div>
-                            <h3 class="font-semibold text-gray-400 mb-2">Work Start Time</h3>
-                            <div class="max-w-xs">${renderCustomTimeInput(settings.workDay.startTime, 'workDay.startTime')}</div>
-                        </div>
-                        <div>
-                            <h3 class="font-semibold text-gray-400 mb-2">Breaks</h3>
-                            <div class="space-y-4">${settings.breaks.map((br, index) => `
-                                <div class="space-y-2 ${index > 0 ? 'mt-4 pt-4 border-t border-gray-700' : ''}">
-                                    <div class="flex justify-between items-center">
-                                        <input type="text" placeholder="Label" value="${br.label}" class="setting-input w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-list="breaks" data-id="${br.id}" data-field="label" />
-                                        <button class="remove-list-item-btn ml-2 text-red-400 hover:text-red-300 shrink-0" data-list="breaks" data-id="${br.id}">${getIcon('Trash2', 16)}</button>
-                                    </div>
-                                    <div class="grid grid-cols-1 gap-2">
-                                        <div class="max-w-xs"><label class="text-sm text-gray-500">Start</label>${renderCustomTimeInput(br.start, `breaks.${br.id}.start`)}</div>
-                                        <div class="max-w-xs"><label class="text-sm text-gray-500">End</label>${renderCustomTimeInput(br.end, `breaks.${br.id}.end`)}</div>
-                                    </div>
-                                </div>`).join('')}
-                            </div>
-                            <button id="add-break-btn" class="mt-2 w-full py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600">Add Break</button>
-                        </div>
-                    </div>
-                </details>
-                <details class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700" ${state.ui.isTasksPanelOpen ? 'open' : ''}>
-                    <summary class="font-semibold text-xl text-gray-200 cursor-pointer" data-panel-id="tasks">Other Tasks & Settings</summary>
-                    <div class="mt-4 space-y-4">
-                        <div>
-                            <h3 class="font-semibold text-gray-400 mb-2">Other Scheduled Tasks</h3>
-                            <div class="space-y-4">${settings.otherTasks.map((task, index) => `
-                                <div class="space-y-2 ${index > 0 ? 'mt-4 pt-4 border-t border-gray-700' : ''}">
-                                    <div class="flex justify-between items-center">
-                                        <input type="text" placeholder="Label" value="${task.label}" class="setting-input w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-list="otherTasks" data-id="${task.id}" data-field="label" />
-                                        <button class="remove-list-item-btn ml-2 text-red-400 hover:text-red-300 shrink-0" data-list="otherTasks" data-id="${task.id}">${getIcon('Trash2', 16)}</button>
-                                    </div>
-                                    <div class="grid grid-cols-1 gap-2">
-                                        <div class="max-w-xs"><label class="text-sm text-gray-500">Start</label>${renderCustomTimeInput(task.start, `otherTasks.${task.id}.start`)}</div>
-                                        <div class="max-w-xs"><label class="text-sm text-gray-500">End</label>${renderCustomTimeInput(task.end, `otherTasks.${task.id}.end`)}</div>
-                                    </div>
-                                    <select class="setting-input w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-list="otherTasks" data-id="${task.id}" data-field="type">
-                                        <option value="non-billable" ${task.type === 'non-billable' ? 'selected' : ''}>Non-Billable</option>
-                                        <option value="billable" ${task.type === 'billable' ? 'selected' : ''}>Billable</option>
-                                    </select>
-                                </div>`).join('')}
-                            </div>
-                            <button id="add-task-btn" class="mt-2 w-full py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600">Add Task</button>
-                        </div>
-                        <div>
-                            <h3 class="font-semibold text-gray-400 mb-2">General Settings</h3>
-                            <div class="space-y-2 text-gray-300">
-                                <div class="flex justify-between items-center"><label class="text-base">Setup Time (min)</label><input type="number" value="${settings.setupTime}" class="setting-input w-20 px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-field="setupTime" /></div>
-                                <div class="flex justify-between items-center"><label class="text-base">Transition Time (min)</label><input type="number" value="${settings.transitionTime}" class="setting-input w-20 px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-field="transitionTime" /></div>
-                                <div class="flex justify-between items-center"><label class="text-base">Productivity Target (%)</label><input type="number" value="${settings.productivityTarget}" class="setting-input w-20 px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-field="productivityTarget" /></div>
-                                <div class="flex justify-between items-center"><label class="text-base">Workday Duration (hours)</label><input type="number" value="${settings.workdayDurationHours}" class="setting-input w-20 px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-field="workdayDurationHours" /></div>
+                            <div class="flex flex-col sm:flex-row gap-2 shrink-0 w-full sm:w-auto">
+                                <button data-action="${Constants.ACTIONS.SAVE}" class="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 bg-yellow-500 text-gray-900 font-semibold rounded-lg hover:bg-yellow-400">${getIcon('Save')}Save</button>
+                                <button data-action="${Constants.ACTIONS.PRINT}" class="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 bg-gray-600 text-gray-200 rounded-lg hover:bg-gray-500">${getIcon('Printer')}Print</button>
+                                <button data-action="${Constants.ACTIONS.CLEAR_DAY}" class="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 bg-red-800/80 text-red-200 rounded-lg hover:bg-red-700/80">${getIcon('Trash2')}Clear Day</button>
                             </div>
                         </div>
-                    </div>
-                </details>
-            `;
-        }
-
-        function renderDaySummary(schedule, appointments, patientQueue, settings) {
-             const container = document.getElementById('day-summary-container');
-             if (!schedule) { container.innerHTML = ''; return; }
-             const patientsSeenCount = appointments.filter(a => a.completed).length;
-             container.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700"><h2 class="text-3xl font-bold text-gray-200 mb-4">Day Summary</h2><div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center"><div><div class="text-3xl sm:text-4xl font-bold ${schedule.meetsTarget ? 'text-green-400' : 'text-gray-300'}">${schedule.projectedClockOutMins > 0 ? minutesToTime(schedule.projectedClockOutMins) : "--:--"}</div><div class="text-base text-gray-400">Target Clock-Out</div></div><div><div class="text-3xl sm:text-4xl font-bold text-yellow-400">${Math.floor(schedule.totalBillableTime/60)}h ${schedule.totalBillableTime % 60}m</div><div class="text-base text-gray-400">Total Billable</div></div><div><div class="text-3xl sm:text-4xl font-bold text-gray-300">${patientsSeenCount}</div><div class="text-base text-gray-400">Patients Seen</div></div><div><div class="text-3xl sm:text-4xl font-bold text-gray-300">${patientQueue.length}</div><div class="text-base text-gray-400">Unscheduled</div></div></div><div class="mt-4 p-3 bg-gray-900/50 border border-gray-700 rounded-lg flex items-start gap-3"><span class="text-yellow-400 mt-1 flex-shrink-0">${getIcon('BrainCircuit', 20)}</span><div><h4 class="font-semibold text-lg text-yellow-400">Actionable Insights</h4>${schedule.suggestions.map(s => `<p class="text-base text-gray-300">${s.replace(/<b>/g, '<b class="text-yellow-300">')}</p>`).join('')}</div></div></div>`;
-        }
-        
-        // REFACTORED: This function now uses programmatic DOM creation for timeline items to improve security and performance.
-        function renderScheduleTimeline(schedule, settings) {
-            const container = document.getElementById('schedule-timeline-container');
-            if (!schedule) {
+                    </div>`;
+            }
+            
+            _renderModals({ clearDay, editAppointment, editingAppointment }) {
+                const container = document.getElementById('modal-container');
                 container.innerHTML = '';
-                return;
+                if (clearDay) {
+                    container.innerHTML = `<div class="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4"><div class="bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-6 w-full max-w-md animate-fade-in-down"><div class="flex justify-between items-center mb-4"><h2 class="text-2xl font-bold text-yellow-400">Confirm Clear Day</h2><button data-action="${Constants.ACTIONS.CANCEL_CLEAR}" class="p-1 rounded-full text-gray-400 hover:bg-gray-700">${getIcon('X', 20)}</button></div><div class="text-base text-gray-300 mb-6">Are you sure? This action cannot be undone.</div><div class="flex justify-end gap-3"><button data-action="${Constants.ACTIONS.CANCEL_CLEAR}" class="px-4 py-2 bg-gray-600 text-gray-200 rounded-lg hover:bg-gray-500">Cancel</button><button data-action="${Constants.ACTIONS.CONFIRM_CLEAR}" class="px-4 py-2 bg-red-800/80 text-red-200 rounded-lg hover:bg-red-700/80">Confirm</button></div></div></div>`;
+                } else if (editAppointment && editingAppointment) {
+                    container.innerHTML = `<div class="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4"><div class="bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-6 w-full max-w-md animate-fade-in-down"><div class="flex justify-between items-center mb-4"><h2 class="text-2xl font-bold text-yellow-400">Edit Session: ${editingAppointment.name}</h2><button data-action="${Constants.ACTIONS.CANCEL_EDIT}" class="p-1 rounded-full text-gray-400 hover:bg-gray-700">${getIcon('X', 20)}</button></div><div class="mb-6 space-y-4">
+                        <div><label class="block text-base font-medium text-gray-300 mb-1">Start Time</label>${this._renderCustomTimeInput(editingAppointment.start, 'edit.start')}</div>
+                        <div><label class="block text-base font-medium text-gray-300 mb-1">End Time</label>${this._renderCustomTimeInput(editingAppointment.end, 'edit.end')}</div>
+                        <div><label for="edit-duration-input" class="block text-base font-medium text-gray-300">Duration (minutes)</label><input id="edit-duration-input" type="number" value="${editingAppointment.duration}" class="w-full mt-1 px-3 py-2 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-yellow-500 focus:border-yellow-500" /></div>
+                    </div><div class="flex justify-end gap-3"><button data-action="${Constants.ACTIONS.CANCEL_EDIT}" class="px-4 py-2 bg-gray-600 text-gray-200 rounded-lg hover:bg-gray-500">Cancel</button><button data-action="${Constants.ACTIONS.SAVE_EDIT}" class="px-4 py-2 bg-yellow-500 text-gray-900 font-semibold rounded-lg hover:bg-yellow-400">Save Changes</button></div></div></div>`;
+                    document.getElementById('edit-duration-input').focus();
+                }
             }
-
-            const dayStartMins = timeStringToMinutes(settings.workDay.startTime);
-            const totalDayDurationMins = settings.workdayDurationHours * 60;
-            const timelineContentHeight = (totalDayDurationMins / 60) * PIXELS_PER_HOUR;
-            const startHour = Math.floor(dayStartMins / 60);
-            const endHour = startHour + settings.workdayDurationHours;
-
-            // Use innerHTML for the static shell of the component.
-            container.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700"><h2 class="text-xl font-semibold text-gray-200 mb-4">Visual Schedule</h2><div class="timeline-scroll-container bg-gray-900/50 pl-10 sm:pl-14 py-2"><div id="timeline-droppable" class="relative" style="height: ${timelineContentHeight}px;"><div id="drag-placeholder" class="absolute bg-yellow-500/20 border-2 border-dashed border-yellow-400 rounded-md z-0 hidden pointer-events-none" style="width: 90%; left: 5%;"></div></div></div></div>`;
             
-            const timelineEl = document.getElementById('timeline-droppable');
-            if (!timelineEl) return;
-
-            // Programmatically create and add time markers
-            for (let hour = startHour; hour <= endHour; hour++) {
-                const hourMins = hour * 60;
-                const top = ((hourMins - dayStartMins) / 60) * PIXELS_PER_HOUR;
-                const markerWrapper = document.createElement('div');
-                markerWrapper.className = 'absolute w-full';
-                markerWrapper.style.top = `${top}px`;
-                markerWrapper.style.left = '0';
-                
-                const timeLabel = document.createElement('span');
-                timeLabel.className = 'text-sm text-gray-500 absolute -left-10 sm:-left-14 text-right w-10 sm:w-14 pr-2 transform -translate-y-1/2';
-                timeLabel.textContent = `${hour % 12 || 12}:00 ${hour < 12 || hour === 24 ? 'AM' : 'PM'}`;
-                
-                const line = document.createElement('div');
-                line.className = 'border-t border-gray-700';
-
-                markerWrapper.appendChild(timeLabel);
-                markerWrapper.appendChild(line);
-                timelineEl.appendChild(markerWrapper);
+            _renderPatientQueue(queue) {
+                 document.getElementById('patient-queue-container').innerHTML = `
+                    <div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
+                        <h2 class="text-2xl font-semibold text-gray-200 mb-4 flex items-center gap-2"><span class="text-yellow-400">${getIcon('Clock', 20)}</span>Patient Queue (${queue.length})</h2>
+                        <div class="flex gap-2 mb-2">
+                            <input id="patient-duration-input" type="number" placeholder="Duration (min)" class="w-full px-3 py-2 bg-gray-700 border-gray-600 text-gray-200 rounded-md focus:ring-yellow-500 focus:border-yellow-500" />
+                            <button data-action="${Constants.ACTIONS.ADD_PATIENT}" class="px-4 py-2 bg-yellow-500 text-gray-900 font-semibold rounded-lg hover:bg-yellow-400 shrink-0">${getIcon('Plus', 16)}</button>
+                        </div>
+                        <div class="grid grid-cols-4 gap-2 mb-4">
+                            ${Constants.PATIENT_PRESET_DURATIONS.map(d => `<button data-action="${Constants.ACTIONS.ADD_PATIENT_PRESET}" data-duration="${d}" class="w-full py-1 text-base bg-gray-700 text-gray-300 rounded hover:bg-gray-600">+${d}</button>`).join('')}
+                        </div>
+                        <div id="patient-list" class="space-y-2 max-h-48 overflow-y-auto p-1 bg-gray-900/50 rounded min-h-[4rem]">
+                            ${queue.map(p => `<div draggable="true" class="patient-item flex justify-between items-center p-2 rounded-md shadow-sm cursor-grab active:cursor-grabbing border ${this._getAppointmentColor(p.duration)}" data-patient-id="${p.id}"><span class="font-semibold text-base">${p.name} (${p.duration} min)</span><button data-action="${Constants.ACTIONS.REMOVE_PATIENT}" class="p-1 hover:bg-white/10 rounded-full">${getIcon('Trash2', 14)}</button></div>`).join('')}
+                        </div>
+                        <button data-action="${Constants.ACTIONS.AUTO_SCHEDULE}" class="w-full mt-4 py-2 px-4 bg-gray-700 text-yellow-300 font-semibold rounded-lg hover:bg-gray-600 flex items-center justify-center gap-2">${getIcon('Zap')} Optimize Schedule</button>
+                    </div>`;
             }
 
-            // Get items with layout info and render them programmatically
-            const timelineItemsWithLayout = calculateAppointmentLayout(schedule.timelineItems);
+            _renderSettingsPanel(settings) {
+                document.getElementById('settings-panel-container').innerHTML = `
+                <details id="details-workday" class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700" open><summary class="font-semibold text-xl text-gray-200 cursor-pointer">Work Day & Breaks</summary><div class="mt-4 space-y-4"><div><h3 class="font-semibold text-gray-400 mb-2">Work Start Time</h3><div class="p-2 bg-gray-900/50 rounded-lg">${this._renderCustomTimeInput(settings.workDay.startTime, 'workDay.startTime')}</div></div><div><h3 class="font-semibold text-gray-400 mb-2">Breaks</h3><div class="space-y-2">${settings.breaks.map(br => `<div class="space-y-2 p-2 bg-gray-900/50 rounded-lg"><div class="flex justify-between items-center"><input type="text" placeholder="Label" value="${br.label}" class="setting-input w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-list="breaks" data-id="${br.id}" data-field="label" /><button data-action="${Constants.ACTIONS.DELETE_BREAK}" data-id="${br.id}" class="ml-2 text-red-400 hover:text-red-300 shrink-0">${getIcon('Trash2', 16)}</button></div><div class="grid grid-cols-1 gap-2"><div><label class="text-sm text-gray-500">Start</label>${this._renderCustomTimeInput(br.start, `breaks.${br.id}.start`)}</div><div><label class="text-sm text-gray-500">End</label>${this._renderCustomTimeInput(br.end, `breaks.${br.id}.end`)}</div></div></div>`).join('')}</div><button data-action="${Constants.ACTIONS.ADD_BREAK}" class="mt-2 w-full py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600">Add Break</button></div></div></details>
+                <details id="details-tasks" class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700"><summary class="font-semibold text-xl text-gray-200 cursor-pointer">Other Tasks & Settings</summary><div class="mt-4 space-y-4"><div><h3 class="font-semibold text-gray-400 mb-2">Other Scheduled Tasks</h3><div class="space-y-2">${settings.otherTasks.map(task => `<div class="space-y-2 p-2 bg-gray-900/50 rounded-lg"><div class="flex justify-between items-center"><input type="text" placeholder="Label" value="${task.label}" class="setting-input w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-list="otherTasks" data-id="${task.id}" data-field="label" /><button data-action="${Constants.ACTIONS.DELETE_TASK}" data-id="${task.id}" class="ml-2 text-red-400 hover:text-red-300 shrink-0">${getIcon('Trash2', 16)}</button></div><div class="grid grid-cols-1 gap-2"><div><label class="text-sm text-gray-500">Start</label>${this._renderCustomTimeInput(task.start, `otherTasks.${task.id}.start`)}</div><div><label class="text-sm text-gray-500">End</label>${this._renderCustomTimeInput(task.end, `otherTasks.${task.id}.end`)}</div></div><select class="setting-input w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-list="otherTasks" data-id="${task.id}" data-field="type"><option value="non-billable" ${task.type === 'non-billable' ? 'selected' : ''}>Non-Billable</option><option value="billable" ${task.type === 'billable' ? 'selected' : ''}>Billable</option></select></div>`).join('')}</div><button data-action="${Constants.ACTIONS.ADD_TASK}" class="mt-2 w-full py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600">Add Task</button></div><div><h3 class="font-semibold text-gray-400 mb-2">General Settings</h3><div class="space-y-2 text-gray-300">${Object.entries({setupTime: 'Setup Time (min)', transitionTime: 'Transition Time (min)', productivityTarget: 'Productivity Target (%)', workdayDurationHours: 'Workday Duration (hours)'}).map(([field, label]) => `<div class="flex justify-between items-center"><label class="text-base">${label}</label><input type="number" value="${settings[field]}" class="setting-input w-20 px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" data-field="${field}" /></div>`).join('')}</div></div></div></details>`;
+            }
 
-            timelineItemsWithLayout.forEach(item => {
-                const top = ((item.startMins - dayStartMins) / 60) * PIXELS_PER_HOUR;
-                const height = ((item.endMins - item.startMins) / 60) * PIXELS_PER_HOUR;
-                if (height <= 1) return;
+            _renderDaySummary(schedule, appointments, patientQueue, settings, productivityCalculator) {
+                const container = document.getElementById('day-summary-container');
+                if (!schedule) { container.innerHTML = ''; return; }
+                const patientsSeenCount = appointments.filter(a => a.completed).length;
+                container.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700"><h2 class="text-3xl font-bold text-gray-200 mb-4">Day Summary</h2><div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center"><div><div class="text-3xl sm:text-4xl font-bold ${schedule.meetsTarget ? 'text-green-400' : 'text-gray-300'}">${schedule.projectedClockOutMins > 0 ? TimeUtils.minutesToTime(schedule.projectedClockOutMins) : "--:--"}</div><div class="text-base text-gray-400">Target Clock-Out</div></div><div><div class="text-3xl sm:text-4xl font-bold text-yellow-400">${Math.floor(schedule.totalBillableTime/60)}h ${schedule.totalBillableTime % 60}m</div><div class="text-base text-gray-400">Total Billable</div></div><div><div class="text-3xl sm:text-4xl font-bold text-gray-300">${patientsSeenCount}</div><div class="text-base text-gray-400">Patients Seen</div></div><div><div class="text-3xl sm:text-4xl font-bold text-gray-300">${patientQueue.length}</div><div class="text-base text-gray-400">Unscheduled</div></div></div><div class="mt-4 p-3 bg-gray-900/50 border border-gray-700 rounded-lg flex items-start gap-3"><span class="text-yellow-400 mt-1 flex-shrink-0">${getIcon('BrainCircuit', 20)}</span><div><h4 class="font-semibold text-lg text-yellow-400">Actionable Insights</h4>${schedule.suggestions.map(s => `<p class="text-base text-gray-300">${s.replace(/<b>/g, '<b class="text-yellow-300">')}</p>`).join('')}</div></div>${schedule.totalBillableTime > 0 ? this._renderProductivityCalculator(schedule, settings, productivityCalculator) : ''}</div>`;
+            }
 
-                const itemWrapper = document.createElement('div');
-                itemWrapper.className = 'absolute';
-                itemWrapper.style.top = `${top}px`;
-                itemWrapper.style.height = `${height}px`;
+            _renderProductivityCalculator(schedule, settings, { extraMinutes, endTime }) {
+                const dayStartMins = TimeUtils.timeStringToMinutes(settings.workDay.startTime);
+                const { totalBillableTime } = schedule;
+                const whatIfEndTimeMins = TimeUtils.timeStringToMinutes(endTime);
+                
+                const whatIfTotalMinutes = whatIfEndTimeMins - dayStartMins;
+                const productivityAtNewTime = whatIfTotalMinutes > 0 ? ((totalBillableTime / whatIfTotalMinutes) * 100).toFixed(1) : "0.0";
+                
+                const addedMinutes = parseInt(extraMinutes) || 0;
+                const newTotalBillableTime = totalBillableTime + addedMinutes;
+                const productivityWithExtraMinutes = whatIfTotalMinutes > 0 ? ((newTotalBillableTime / whatIfTotalMinutes) * 100).toFixed(1) : "0.0";
 
-                let content;
+                return `<details id="details-productivity" class="mt-4 bg-gray-900/50 rounded-lg p-3 border border-gray-700"><summary class="font-semibold text-lg text-gray-300 cursor-pointer flex items-center gap-2">${getIcon('TrendingUp')} Productivity Calculator</summary><div class="mt-4 space-y-4 pt-4 border-t border-gray-700"><div class="space-y-2"><label class="block text-base font-medium text-gray-400">If I clock out at...</label>${this._renderCustomTimeInput(endTime, 'productivity.endTime')}<p class="text-base text-gray-300 mt-2">Your productivity would be: <strong class="text-xl text-yellow-400">${productivityAtNewTime}%</strong></p></div><hr class="border-gray-700"/><div class="space-y-2"><label class="block text-base font-medium text-gray-400">And I add an extra...</label><div class="flex items-center gap-2"><input type="number" id="extra-minutes-input" value="${extraMinutes}" class="w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" placeholder="e.g., 30" /><span class="text-base text-gray-500">billable mins</span></div><p class="text-base text-gray-300">Your new productivity would be: <strong class="text-xl text-yellow-400">${productivityWithExtraMinutes}%</strong> (at the time specified above)</p></div></div></details>`;
+            }
+
+            _renderScheduleTimeline(schedule, settings) {
+                const container = document.getElementById('schedule-timeline-container');
+                if (!schedule) { container.innerHTML = ''; return; }
+                const dayStartMins = TimeUtils.timeStringToMinutes(settings.workDay.startTime);
+                const totalDayDurationMins = settings.workdayDurationHours * Constants.TIME.MINUTES_IN_HOUR;
+                const timelineContentHeight = (totalDayDurationMins / Constants.TIME.MINUTES_IN_HOUR) * Constants.PIXELS_PER_HOUR;
+                const startHour = Math.floor(dayStartMins / Constants.TIME.MINUTES_IN_HOUR);
+                const endHour = startHour + settings.workdayDurationHours;
+
+                let timeMarkersHTML = '';
+                for (let hour = startHour; hour <= endHour; hour++) {
+                    const hourMins = hour * Constants.TIME.MINUTES_IN_HOUR;
+                    const top = ((hourMins - dayStartMins) / Constants.TIME.MINUTES_IN_HOUR) * Constants.PIXELS_PER_HOUR;
+                    timeMarkersHTML += `<div class="absolute w-full" style="top: ${top}px; left: 0;"><span class="text-sm text-gray-500 absolute -left-10 sm:-left-14 text-right w-10 sm:w-14 pr-2 transform -translate-y-1/2">${hour % Constants.TIME.HOURS_AM_PM || Constants.TIME.HOURS_AM_PM}:00 ${hour < Constants.TIME.HOURS_AM_PM || hour === Constants.TIME.HOURS_IN_DAY ? 'AM' : 'PM'}</span><div class="border-t border-gray-700"></div></div>`;
+                }
+
+                const timelineItemsWithLayout = ScheduleCalculator.calculateAppointmentLayout(schedule.timelineItems);
+                const timelineItemsHTML = timelineItemsWithLayout.map(item => this._getTimelineItemHTML(item, dayStartMins)).join('');
+
+                container.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700"><h2 class="text-xl font-semibold text-gray-200 mb-4">Visual Schedule</h2><div class="timeline-scroll-container overflow-y-auto max-h-[82vh] bg-gray-900/50 pl-10 sm:pl-14 py-2 rounded-md"><div id="timeline-droppable" class="relative" style="height: ${timelineContentHeight}px;">${timeMarkersHTML}${timelineItemsHTML}</div></div></div>`;
+
+                const scrollContainer = container.querySelector('.timeline-scroll-container');
+                if (scrollContainer && !this.initialScrollDone) {
+                    const now = new Date();
+                    const currentTimeInMinutes = now.getHours() * Constants.TIME.MINUTES_IN_HOUR + now.getMinutes();
+                    const scrollOffset = ((currentTimeInMinutes - dayStartMins) / Constants.TIME.MINUTES_IN_HOUR) * Constants.PIXELS_PER_HOUR;
+                    scrollContainer.scrollTop = Math.max(0, scrollOffset - 50); 
+                    this.initialScrollDone = true;
+                }
+            }
+
+            _getTimelineItemHTML(item, dayStartMins) {
+                const top = ((item.startMins - dayStartMins) / Constants.TIME.MINUTES_IN_HOUR) * Constants.PIXELS_PER_HOUR;
+                const height = ((item.endMins - item.startMins) / Constants.TIME.MINUTES_IN_HOUR) * Constants.PIXELS_PER_HOUR;
+                if (height <= Constants.TIMELINE_LAYOUT.ITEM_MIN_HEIGHT_PX) return ''; 
+
+                let content = '', style = `top: ${top}px; height: ${height}px;`;
 
                 switch (item.type) {
                     case 'appointment':
                         const { lane, totalLanes } = item.layout;
-                        const itemWidth = totalLanes > 1 ? (90 / totalLanes) - 0.5 : 90;
-                        const itemLeft = 5 + (lane * (90 / totalLanes)) + (totalLanes > 1 ? 0.25 : 0);
-                        itemWrapper.style.width = `${itemWidth}%`;
-                        itemWrapper.style.left = `${itemLeft}%`;
-                        itemWrapper.style.zIndex = `${10 + lane}`;
-                        
-                        const fontSize = height < 25 ? 'text-xs' : 'text-sm';
-                        const timeDetailsVisibility = height < 20 ? 'hidden' : 'block';
-
-                        const appointmentHTML = `
-                            <div class="flex justify-between w-full ${fontSize}">
-                                <div>
-                                    <span class="block ${item.completed ? 'line-through' : ''} opacity-80">${item.duration}m</span>
-                                    <span class="block ${timeDetailsVisibility} ${item.completed ? 'line-through' : ''} opacity-80">${minutesToTime(item.startMins)} - ${minutesToTime(item.endMins)}</span>
-                                </div>
-                                <div class="text-right">
-                                    <strong class="font-semibold ${item.completed ? 'line-through' : ''}">${item.name}</strong>
-                                </div>
-                            </div>
-                            <div class="appointment-controls absolute top-1 right-1 flex opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900/90 rounded-md shadow-lg z-10"><button class="edit-appointment-btn p-1.5" title="Edit session">${getIcon('Edit', 14)}</button><button class="toggle-complete-btn p-1.5" title="Mark complete">${getIcon('CheckCircle', 14)}</button><button class="remove-appointment-btn p-1.5" title="Remove session">${getIcon('Trash2', 14)}</button></div>
+                        const itemWidth = totalLanes > 1 ? (Constants.TIMELINE_LAYOUT.BASE_WIDTH_PERCENT / totalLanes) - Constants.TIMELINE_LAYOUT.OVERLAP_GAP_PERCENT : Constants.TIMELINE_LAYOUT.BASE_WIDTH_PERCENT;
+                        const itemLeft = Constants.TIMELINE_LAYOUT.BASE_LEFT_PERCENT + (lane * (Constants.TIMELINE_LAYOUT.BASE_WIDTH_PERCENT / totalLanes)) + (totalLanes > 1 ? Constants.TIMELINE_LAYOUT.OVERLAP_OFFSET_PERCENT : 0);
+                        style += ` width: ${itemWidth}%; left: ${itemLeft}%; z-index: ${Constants.TIMELINE_LAYOUT.BASE_Z_INDEX + lane};`;
+                        content = `<div class="timeline-appointment-item relative group pt-1 px-2 pb-2 rounded-md cursor-pointer h-full w-full border ${this._getAppointmentColor(item.duration)} ${item.completed ? 'opacity-60' : ''}" data-id="${item.id}" draggable="true">
+                            <div class="flex justify-between"><span class="block text-base ${item.completed ? 'line-through' : ''} opacity-80">${item.duration}m</span><strong class="text-base font-semibold ${item.completed ? 'line-through' : ''}">${item.name}</strong></div>
+                            <span class="block text-base ${item.completed ? 'line-through' : ''} opacity-80">${TimeUtils.minutesToTime(item.startMins)} - ${TimeUtils.minutesToTime(item.endMins)}</span>
+                            <div class="absolute top-1 right-1 flex opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900/90 rounded-md shadow-lg"><button data-action="${Constants.ACTIONS.EDIT_APPOINTMENT}" class="p-1.5" title="Edit session">${getIcon('Edit', 14)}</button><button data-action="${Constants.ACTIONS.TOGGLE_COMPLETE}" class="p-1.5" title="Mark complete">${getIcon('CheckCircle', 14)}</button><button data-action="${Constants.ACTIONS.DELETE_APPOINTMENT}" class="p-1.5" title="Remove session">${getIcon('Trash2', 14)}</button></div>
                             ${item.completed ? `<div class="absolute top-2 right-2 p-1.5 bg-gray-900/50 rounded-lg group-hover:opacity-0">${getIcon('CheckCircle', 16)}</div>` : ''}
-                            <div class="resize-handle top" data-direction="top"></div>
-                            <div class="resize-handle bottom" data-direction="bottom"></div>`;
-                        
-                        content = document.createElement('div');
-                        content.draggable = true;
-                        content.className = `timeline-appointment-item relative group px-2 py-1 rounded-md cursor-pointer h-full w-full border overflow-hidden flex items-start ${getAppointmentColor(item.duration)} ${item.completed ? 'opacity-60' : ''}`;
-                        content.dataset.id = item.id;
-                        content.innerHTML = appointmentHTML;
+                        </div>`;
                         break;
-                    case 'break':
-                    case 'billable':
-                    case 'non-billable':
-                        itemWrapper.style.width = '90%';
-                        itemWrapper.style.left = '5%';
-                        itemWrapper.style.zIndex = '5';
-                        const icon = item.type === 'break' ? getIcon('Coffee', 14) : getIcon('Briefcase', 14);
-                        let taskBgColor = 'bg-gray-700/50 border-gray-600';
-                        if (item.type === 'billable') taskBgColor = 'bg-sky-700/50 border-sky-600';
-                        else if (item.type === 'non-billable') taskBgColor = 'bg-red-900/50 border-red-800/60';
-                        
-                        content = document.createElement('div');
-                        content.className = `p-2 rounded-md ${taskBgColor} text-gray-300 text-sm h-full w-full flex flex-col justify-center border`;
-                        content.innerHTML = `<div class="flex items-center gap-1"><span class="text-yellow-400">${icon}</span><strong>${item.label}</strong></div><span class="text-xs opacity-70">${minutesToTime(item.startMins)} - ${minutesToTime(item.endMins)}</span>`;
+                    case 'break': case 'billable': case 'non-billable':
+                        style += ` width: ${Constants.TIMELINE_LAYOUT.BASE_WIDTH_PERCENT}%; left: ${Constants.TIMELINE_LAYOUT.BASE_LEFT_PERCENT}%; z-index: 5;`;
+                        content = `<div class="p-2 rounded-md bg-gray-700/50 border-gray-600 text-gray-300 text-sm h-full w-full flex flex-col justify-center"><div class="flex items-center gap-1"><span class="text-yellow-400">${item.type === 'break' ? getIcon('Coffee', 14) : getIcon('Briefcase', 14)}</span><strong>${item.label}</strong></div><span class="text-xs opacity-70">${TimeUtils.minutesToTime(item.startMins)} - ${TimeUtils.minutesToTime(item.endMins)}</span></div>`;
                         break;
                     case 'gap':
-                        itemWrapper.style.width = '90%';
-                        itemWrapper.style.left = '5%';
-                        content = document.createElement('div');
-                        content.className = 'timeline-gap rounded-md bg-red-900/40 border border-dashed border-red-800/80 hover:bg-yellow-500/10 hover:border-yellow-400 transition-colors flex justify-center items-center text-xs text-red-400 text-center h-full w-full';
-                        content.dataset.start = item.start;
-                        content.dataset.duration = item.duration;
-                        content.innerHTML = `Unbillable Gap<br>(${item.duration} min)`;
+                        style += ` width: ${Constants.TIMELINE_LAYOUT.BASE_WIDTH_PERCENT}%; left: ${Constants.TIMELINE_LAYOUT.BASE_LEFT_PERCENT}%;`;
+                        content = `<div class="timeline-gap rounded-md border-2 border-dashed border-gray-700 hover:bg-yellow-500/10 hover:border-yellow-400 transition-colors flex justify-center items-center text-sm text-center h-full w-full" data-start="${item.start}" data-duration="${item.duration}">Drop Here<br/>(${item.duration} min)</div>`;
                         break;
                 }
-                if (content) {
-                    itemWrapper.appendChild(content);
-                    timelineEl.appendChild(itemWrapper);
-                }
-            });
-             // Add the placeholder back inside the timeline element for drag-and-drop
-            const placeholder = document.getElementById('drag-placeholder');
-            if (placeholder) timelineEl.appendChild(placeholder);
-        }
-        
-        function updateStateWithNewTime(id, value) {
-            const parts = id.split('.');
-            if (parts.length === 2 && parts[0] === 'workDay') {
-                state.settings.workDay.startTime = value;
-            } else if (parts.length === 3) {
-                const [list, itemId, field] = parts;
-                state.settings[list] = state.settings[list].map(item => String(item.id) === itemId ? { ...item, [field]: value } : item);
+                return `<div style="${style}" class="absolute">${content}</div>`;
+            }
+
+            _renderCustomTimeInput(value, id) {
+                const totalMinutes = TimeUtils.timeStringToMinutes(value);
+                const hours24 = Math.floor(totalMinutes / Constants.TIME.MINUTES_IN_HOUR) % Constants.TIME.HOURS_IN_DAY;
+                const minute = totalMinutes % Constants.TIME.MINUTES_IN_HOUR;
+                const period = hours24 >= Constants.TIME.HOURS_AM_PM ? 'PM' : 'AM';
+                let hour12 = hours24 % Constants.TIME.HOURS_AM_PM;
+                if (hour12 === 0) hour12 = Constants.TIME.HOURS_AM_PM;
+
+                return `<div class="flex items-center gap-2"><div class="custom-time-input flex items-center bg-gray-700 border border-gray-600 text-gray-200 rounded-md p-1 w-full" data-id="${id}"><input type="number" value="${hour12}" class="time-input-hour w-full bg-transparent text-center focus:outline-none" min="1" max="12"><span class="font-bold text-gray-500">:</span><input type="number" value="${String(minute).padStart(2, '0')}" class="time-input-minute w-full bg-transparent text-center focus:outline-none" min="0" max="59"><div class="flex flex-col border-l border-gray-600 ml-1 pl-1"><button class="am-pm-btn text-xs leading-tight p-0.5 rounded-sm ${period === 'AM' ? 'bg-yellow-500 text-gray-900 font-semibold' : 'hover:bg-gray-600 text-gray-400'}" data-period="AM">AM</button><button class="am-pm-btn text-xs leading-tight p-0.5 rounded-sm ${period === 'PM' ? 'bg-yellow-500 text-gray-900 font-semibold' : 'hover:bg-gray-600 text-gray-400'}" data-period="PM">PM</button></div></div><div class="flex flex-col border border-gray-600 rounded-md overflow-hidden"><button data-action="${Constants.ACTIONS.ADJUST_TIME}" data-id="${id}" data-amount="1" class="px-2 text-base bg-gray-800 text-gray-300 hover:bg-gray-700 border-b border-gray-600" title="Add 1 minute">+</button><button data-action="${Constants.ACTIONS.ADJUST_TIME}" data-id="${id}" data-amount="-1" class="px-2 text-base bg-gray-800 text-gray-300 hover:bg-gray-700" title="Subtract 1 minute">-</button></div></div>`;
+            }
+
+            _getAppointmentColor(duration) {
+                if (duration <= Constants.APPOINTMENT_COLOR_THRESHOLDS.SHORT) return 'bg-yellow-500/20 border-yellow-400 text-yellow-200';
+                if (duration <= Constants.APPOINTMENT_COLOR_THRESHOLDS.MEDIUM) return 'bg-blue-500/20 border-blue-400 text-blue-200';
+                if (duration <= Constants.APPOINTMENT_COLOR_THRESHOLDS.LONG) return 'bg-green-500/20 border-green-400 text-green-200';
+                return 'bg-purple-500/20 border-purple-400 text-purple-200';
             }
         }
         
-        function get24hTimeFromUI(container) {
-            if (!container) return null;
-            const hourInput = container.querySelector('.time-input-hour');
-            const minuteInput = container.querySelector('.time-input-minute');
-            const amButton = container.querySelector('.am-pm-btn[data-period="AM"]');
-            let hour12 = parseInt(hourInput.value) || 12;
-            const minute = parseInt(minuteInput.value) || 0;
-            const period = amButton.classList.contains('bg-yellow-500') ? 'AM' : 'PM';
-            let hour24 = hour12;
-            if (period === 'PM' && hour12 < 12) hour24 += 12;
-            if (period === 'AM' && hour12 === 12) hour24 = 0;
-            return minutesTo24hTime(hour24 * 60 + minute);
-        }
-
-        function updateModalEndTime() {
-            const startTimeContainer = document.getElementById('edit-start-time-container');
-            const endTimeContainer = document.getElementById('edit-end-time-container');
-            const durationInput = document.getElementById('edit-duration-input');
-            if (!startTimeContainer || !endTimeContainer || !durationInput) return;
-
-            const startTimeMins = timeStringToMinutes(get24hTimeFromUI(startTimeContainer.querySelector('.custom-time-input')));
-            const duration = parseInt(durationInput.value) || 0;
-            
-            const hasConflict = checkForConflicts(state.editingAppointment.id, startTimeMins, duration);
-            document.getElementById('conflict-warning').classList.toggle('hidden', !hasConflict);
-            document.getElementById('conflict-warning').classList.toggle('flex', hasConflict);
-
-
-            const newEndTime = minutesToTime(startTimeMins + duration);
-            const [time, period] = newEndTime.split(' ');
-            const [hour12, minute] = time.split(':');
-
-            const endTimeComponent = endTimeContainer.querySelector('.custom-time-input');
-            endTimeComponent.querySelector('.time-input-hour').value = hour12;
-            endTimeComponent.querySelector('.time-input-minute').value = String(minute).padStart(2, '0');
-            
-            endTimeComponent.querySelectorAll('.am-pm-btn').forEach(b => {
-                b.classList.remove('bg-yellow-500', 'text-gray-900', 'font-semibold');
-                b.classList.add('hover:bg-gray-600', 'text-gray-400');
-            });
-            const periodBtn = endTimeComponent.querySelector(`.am-pm-btn[data-period="${period}"]`);
-            if (periodBtn) {
-                periodBtn.classList.add('bg-yellow-500', 'text-gray-900', 'font-semibold');
-                periodBtn.classList.remove('hover:bg-gray-600', 'text-gray-400');
+        document.addEventListener('DOMContentLoaded', () => {
+            try { new TherapySchedulerApp(); }
+            catch (error) { 
+                ErrorHandler.logError(error, 'AppInitialization'); 
+                document.body.innerHTML = `<div class="p-8 text-red-400"><h1>Application Error. Please refresh.</h1></div>`; 
             }
-        }
+        });
 
-        function updateModalDuration() {
-            const startTimeContainer = document.getElementById('edit-start-time-container');
-            const endTimeContainer = document.getElementById('edit-end-time-container');
-            const durationInput = document.getElementById('edit-duration-input');
-            if (!startTimeContainer || !endTimeContainer || !durationInput) return;
-
-            const startTimeMins = timeStringToMinutes(get24hTimeFromUI(startTimeContainer.querySelector('.custom-time-input')));
-            const endTimeMins = timeStringToMinutes(get24hTimeFromUI(endTimeContainer.querySelector('.custom-time-input')));
-
-            let newDuration = endTimeMins - startTimeMins;
-            if (newDuration < 0) {
-                newDuration += 24 * 60;
-            }
-
-            durationInput.value = newDuration;
-            
-            const hasConflict = checkForConflicts(state.editingAppointment.id, startTimeMins, newDuration);
-            document.getElementById('conflict-warning').classList.toggle('hidden', !hasConflict);
-            document.getElementById('conflict-warning').classList.toggle('flex', hasConflict);
-        }
-        
-        let resizingState = null;
-        let dragInsertionPoint = null;
-
-        function handleMouseMove(e) {
-            if (!resizingState) return;
-
-            const dy = e.clientY - resizingState.initialY;
-            const dMinutes = (dy / PIXELS_PER_HOUR) * 60;
-            const { appointmentId, direction, initialStartMins, initialDuration } = resizingState;
-            const apt = state.appointments.find(a => a.id === appointmentId);
-            if (!apt) return;
-
-            if (direction === 'bottom') {
-                let newDuration = initialDuration + dMinutes;
-                newDuration = Math.max(MINIMUM_SCHEDULABLE_DURATION, Math.round(newDuration / 5) * 5);
-                apt.duration = newDuration;
-            } else if (direction === 'top') {
-                let newStartMins = initialStartMins + dMinutes;
-                let endMins = initialStartMins + initialDuration;
-                newStartMins = Math.round(newStartMins / 5) * 5;
-                let newDuration = endMins - newStartMins;
-                if (newDuration >= MINIMUM_SCHEDULABLE_DURATION) {
-                    apt.start = minutesTo24hTime(newStartMins);
-                    apt.duration = newDuration;
-                }
-            }
-            render(); 
-        }
-
-        function handleMouseUp() {
-            if (!resizingState) return;
-            
-            const appointmentId = resizingState.appointmentId;
-            const oldDuration = resizingState.initialDuration;
-
-            resizingState = null;
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-
-            const appointment = state.appointments.find(a => a.id === appointmentId);
-            const newDuration = appointment ? appointment.duration : 0;
-            
-            if (newDuration > oldDuration) {
-                pushScheduleFrom(appointment.id);
-                setNotification('Session extended and schedule pushed.', 'success');
-            } else {
-                setNotification('Session updated.', 'success');
-            }
-            
-            render();
-        }
-
-        // --- EVENT HANDLER SETUP ---
-        function addEventListeners() {
-            root.addEventListener('click', handleRootClick);
-            root.addEventListener('input', handleRootInput);
-            root.addEventListener('change', handleRootChange);
-            root.addEventListener('blur', handleRootBlur, true);
-            root.addEventListener('focus', (e) => {
-                if (e.target.matches('.time-input-hour, .time-input-minute')) {
-                    e.target.select();
-                }
-            }, true);
-            root.addEventListener('keydown', handleRootKeyDown);
-            root.addEventListener('dragstart', handleDragStart);
-            root.addEventListener('dragover', handleDragOver);
-            root.addEventListener('dragleave', handleDragLeave);
-            root.addEventListener('dragend', handleDragEnd);
-            root.addEventListener('drop', handleDrop);
-            root.addEventListener('mousedown', handleResizeMouseDown);
-            root.addEventListener('toggle', (e) => {
-                if (e.target.tagName === 'DETAILS') {
-                    const panelId = e.target.querySelector('summary')?.dataset.panelId;
-                    if (panelId === 'breaks') {
-                        state.ui.isBreaksPanelOpen = e.target.open;
-                    } else if (panelId === 'tasks') {
-                        state.ui.isTasksPanelOpen = e.target.open;
-                    }
-                }
-            }, true);
-        }
-
-        // --- DELEGATED EVENT HANDLERS ---
-        function handleRootClick(e) {
-            const summary = e.target.closest('summary');
-            if (summary) {
-                // The native toggle event is now handled by a dedicated listener.
-                return;
-            }
-
-            const btn = e.target.closest('button');
-            if (!btn) return;
-
-            // Global Nav
-            if (btn.id === 'save-settings-btn') { handleSaveSettings(); return; }
-            if (btn.id === 'print-btn') { window.print(); return; }
-            if (btn.id === 'clear-day-btn') { openClearModal(); return; }
-            if (btn.id === 'dismiss-notification-btn') { setNotification('', ''); return; }
-
-            // Modals
-            if (btn.id === 'close-clear-modal-btn' || btn.id === 'cancel-clear-btn') { closeClearModal(); return; }
-            if (btn.id === 'confirm-clear-btn') { handleClearDay(); return; }
-            if (btn.id === 'close-edit-modal-btn' || btn.id === 'cancel-edit-btn') { closeEditModal(); return; }
-            if (btn.id === 'save-edit-btn') {
-                saveAppointmentChanges();
-                return;
-            }
-
-            // Patient Queue
-            if (btn.id === 'add-patient-btn') {
-                const input = document.getElementById('patient-duration-input');
-                addPatientToQueue(parseInt(input.value));
-                input.value = '';
-                return;
-            }
-            if (btn.classList.contains('add-patient-preset-btn')) { addPatientToQueue(parseInt(btn.dataset.duration)); return; }
-            if (btn.classList.contains('remove-patient-btn')) { removePatientFromQueue(btn.closest('.patient-item').dataset.patientId); return; }
-            if (btn.id === 'auto-schedule-btn') { autoSchedule(); return; }
-
-            // Timeline
-            const apptItem = btn.closest('.timeline-appointment-item');
-            if (apptItem) {
-                if (btn.classList.contains('edit-appointment-btn')) { openEditModal(state.appointments.find(a => a.id === apptItem.dataset.id)); return; }
-                if (btn.classList.contains('toggle-complete-btn')) { toggleAppointmentComplete(apptItem.dataset.id); return; }
-                if (btn.classList.contains('remove-appointment-btn')) { removeAppointmentFromSchedule(apptItem.dataset.id); return; }
-            }
-
-            // Settings
-            if (btn.id === 'add-break-btn') { 
-                state.settings.breaks.push({ id: `break-${Date.now()}`, start: '12:00', end: '12:30', label: 'New Break'}); 
-                state.ui.isBreaksPanelOpen = true;
-                render(); 
-                return; 
-            }
-            if (btn.id === 'add-task-btn') { 
-                state.settings.otherTasks.push({ id: `task-${Date.now()}`, start: '15:00', end: '15:30', label: 'New Task', type: 'non-billable'}); 
-                state.ui.isTasksPanelOpen = true;
-                render(); 
-                return; 
-            }
-            if (btn.classList.contains('remove-list-item-btn')) {
-                const { list, id } = btn.dataset;
-                state.settings[list] = state.settings[list].filter(item => String(item.id) !== id);
-                render();
-                return;
-            }
-            if (btn.classList.contains('am-pm-btn')) {
-                const container = btn.closest('.custom-time-input');
-                container.querySelectorAll('.am-pm-btn').forEach(b => {
-                    b.classList.remove('bg-yellow-500', 'text-gray-900', 'font-semibold');
-                    b.classList.add('hover:bg-gray-600', 'text-gray-400');
-                });
-                btn.classList.add('bg-yellow-500', 'text-gray-900', 'font-semibold');
-                btn.classList.remove('hover:bg-gray-600', 'text-gray-400');
-                
-                const modal = btn.closest('#modal-container');
-                if (modal) {
-                     if (container.dataset.id === 'edit.startTime') updateModalEndTime();
-                     else if (container.dataset.id === 'edit.endTime') updateModalDuration();
-                } else {
-                    const newTime = get24hTimeFromUI(container);
-                    updateStateWithNewTime(container.dataset.id, newTime);
-                    render();
-                    const newContainer = document.querySelector(`.custom-time-input[data-id="${container.dataset.id}"]`);
-                    if (newContainer) (newContainer.querySelector(`[data-unit="${btn.dataset.unit}"]`))?.focus();
-                }
-                return;
-            }
-            if (btn.classList.contains('time-adjust-btn')) {
-                const { id, amount } = btn.dataset;
-                const container = btn.closest('.flex.items-center.gap-2').querySelector(`.custom-time-input[data-id="${id}"]`);
-                if (container) {
-                    const timeInMinutes = timeStringToMinutes(get24hTimeFromUI(container));
-                    const newTime = minutesTo24hTime(timeInMinutes + parseInt(amount));
-                    updateStateWithNewTime(id, newTime);
-                    render();
-                }
-            }
-        }
-        
-        function handleRootInput(e) {
-            const target = e.target;
-
-            if (target.matches('.time-input-hour, .time-input-minute')) {
-                const container = target.closest('.custom-time-input');
-                const minuteInput = container.querySelector('.time-input-minute');
-                if (target.classList.contains('time-input-hour')) {
-                    const hour = parseInt(target.value);
-                    if (!isNaN(hour)) {
-                        if (hour > 12) { target.value = "12"; }
-                        if (hour < 1 && target.value.length > 0) { target.value = "1"; }
-                        if (target.value.length >= 2 && hour >= 1 && hour <= 12) minuteInput.focus();
-                    }
-                }
-                if (target.classList.contains('time-input-minute')) {
-                    const minute = parseInt(target.value);
-                    if (!isNaN(minute) && minute > 59) target.value = "59";
-                }
-
-                // When typing in the modal, update the other time/duration field
-                const modal = target.closest('#modal-container');
-                if (modal) {
-                    const id = container.dataset.id;
-                    if (id === 'edit.startTime') updateModalEndTime();
-                    else if (id === 'edit.endTime') updateModalDuration();
-                }
-            }
-             if (target.id === 'edit-duration-input') {
-                updateModalEndTime();
-            }
-        }
-
-        function handleRootChange(e) {
-             const target = e.target;
-             if (target.classList.contains('setting-input')) {
-                const { list, id, field } = target.dataset;
-                const value = target.type === 'number' ? parseInt(target.value) || 0 : target.value;
-                if (list && id && field) {
-                    state.settings[list] = state.settings[list].map(item => String(item.id) === id ? { ...item, [field]: value } : item);
-                } else if (field) {
-                    state.settings[field] = value;
-                }
-                render();
-            }
-        }
-
-        function handleRootBlur(e) {
-            const target = e.target;
-            // Handle custom time inputs in settings/productivity panels
-            if (target.matches('.time-input-hour, .time-input-minute')) {
-                const container = target.closest('.custom-time-input');
-                if (e.relatedTarget && container.contains(e.relatedTarget)) return; // Still inside component
-
-                const modal = target.closest('#modal-container');
-                if (modal) { // Logic for modal is handled by other events (input, click)
-                    const id = container.dataset.id;
-                    if (id === 'edit.startTime') updateModalEndTime();
-                    else if (id === 'edit.endTime') updateModalDuration();
-                    return;
-                }
-
-                // Logic for settings panel time inputs
-                const id = container.dataset.id;
-                const focusRestoreInfo = { id: id, unit: target.dataset.unit };
-
-                if (id === 'workDay.startTime') {
-                    const oldStartTimeMins = timeStringToMinutes(state.settings.workDay.startTime);
-                    const newStartTimeMins = timeStringToMinutes(get24hTimeFromUI(container));
-                    const deltaMinutes = newStartTimeMins - oldStartTimeMins;
-                    if (deltaMinutes !== 0) {
-                        shiftAllScheduledTimes(deltaMinutes);
-                        setNotification(`Schedule shifted by ${deltaMinutes > 0 ? '+' : ''}${deltaMinutes} minutes.`, 'success');
-                    }
-                }
-                const newTime = get24hTimeFromUI(container);
-                updateStateWithNewTime(id, newTime);
-                render();
-
-                const newContainer = document.querySelector(`.custom-time-input[data-id="${focusRestoreInfo.id}"]`);
-                if (newContainer) {
-                    const elementToFocus = newContainer.querySelector(`[data-unit="${focusRestoreInfo.unit}"]`);
-                    if (elementToFocus) {
-                        elementToFocus.focus();
-                        elementToFocus.select();
-                    }
-                }
-            }
-        }
-
-        function handleRootKeyDown(e) {
-            const target = e.target;
-
-            if (e.key === 'Enter') {
-                if (target.id === 'patient-duration-input') {
-                    addPatientToQueue(parseInt(target.value));
-                    target.value = '';
-                } else if (target.closest('#modal-container')) {
-                    saveAppointmentChanges();
-                }
-            }
-
-            if (target.matches('.time-input-hour, .time-input-minute')) {
-                const container = target.closest('.custom-time-input');
-                const hourInput = container.querySelector('.time-input-hour');
-                const minuteInput = container.querySelector('.time-input-minute');
-
-                if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    let currentValue = parseInt(target.value) || 0;
-                    currentValue += (e.key === 'ArrowUp' ? 1 : -1);
-
-                    if (target.classList.contains('time-input-hour')) {
-                        if (currentValue > 12) currentValue = 1;
-                        if (currentValue < 1) currentValue = 12;
-                    } else {
-                        if (currentValue > 59) currentValue = 0;
-                        if (currentValue < 0) currentValue = 59;
-                    }
-                    target.value = target.classList.contains('time-input-minute') ? String(currentValue).padStart(2, '0') : currentValue;
-                    target.select();
-
-                    const modal = target.closest('#modal-container');
-                    if (modal) {
-                        target.dispatchEvent(new Event('input', { bubbles: true }));
-                    } else {
-                        const id = container.dataset.id;
-                        if (id === 'workDay.startTime') {
-                            const oldStartTimeMins = timeStringToMinutes(state.settings.workDay.startTime);
-                            const newStartTimeMins = timeStringToMinutes(get24hTimeFromUI(container));
-                            const deltaMinutes = newStartTimeMins - oldStartTimeMins;
-                            if (deltaMinutes !== 0) {
-                                shiftAllScheduledTimes(deltaMinutes);
-                                setNotification(`Schedule shifted by ${deltaMinutes > 0 ? '+' : ''}${deltaMinutes} minutes.`, 'success');
-                            }
-                        }
-                        const newTime = get24hTimeFromUI(container);
-                        updateStateWithNewTime(id, newTime);
-                        render();
-                    }
-                    return;
-                }
-
-                if (e.key === 'ArrowRight' && target.classList.contains('time-input-hour') && target.selectionStart === target.value.length) {
-                    e.preventDefault();
-                    minuteInput.focus();
-                } else if (e.key === 'ArrowLeft' && target.classList.contains('time-input-minute') && target.selectionStart === 0) {
-                    e.preventDefault();
-                    hourInput.focus();
-                }
-            }
-        }
-
-        function handleDragStart(e) {
-            const patientItem = e.target.closest('.patient-item');
-            const apptItem = e.target.closest('.timeline-appointment-item');
-            if (patientItem) state.draggedPatient = state.patientQueue.find(p => p.id === patientItem.dataset.patientId);
-            else if (apptItem) state.draggedPatient = state.appointments.find(a => a.id === apptItem.dataset.id);
-        }
-
-        function handleDragOver(e) {
-            const timelineEl = e.target.closest('#timeline-droppable');
-            if (!timelineEl || !state.draggedPatient) return;
-
-            e.preventDefault();
-            timelineEl.classList.add('drag-over');
-
-            const allEvents = [
-                ...state.appointments.filter(a => a.id !== state.draggedPatient.id),
-                ...state.settings.breaks,
-                ...state.settings.otherTasks
-            ].map(ev => {
-                const startMins = timeStringToMinutes(ev.start);
-                const endMins = ev.duration ? (startMins + ev.duration + state.settings.transitionTime) : timeStringToMinutes(ev.end);
-                return { startMins, endMins };
-            }).sort((a, b) => a.startMins - b.startMins);
-
-            const rect = timelineEl.getBoundingClientRect();
-            const dayStartMins = timeStringToMinutes(state.settings.workDay.startTime);
-            const scrollContainer = document.querySelector('.timeline-scroll-container');
-            const scrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
-            const offsetY = e.clientY - rect.top + scrollTop;
-            const mouseMins = dayStartMins + (offsetY / PIXELS_PER_HOUR) * 60;
-
-            let prevEvent = null;
-            for (const event of allEvents) {
-                if (event.endMins <= mouseMins) {
-                    prevEvent = event;
-                } else {
-                    break;
-                }
-            }
-
-            dragInsertionPoint = prevEvent ? prevEvent.endMins : dayStartMins + state.settings.setupTime;
-
-            const placeholder = document.getElementById('drag-placeholder');
-            const top = ((dragInsertionPoint - dayStartMins) / 60) * PIXELS_PER_HOUR;
-            const height = (state.draggedPatient.duration / 60) * PIXELS_PER_HOUR;
-
-            placeholder.style.top = `${top}px`;
-            placeholder.style.height = `${height}px`;
-            placeholder.classList.remove('hidden');
-        }
-
-        function handleDragLeave(e) {
-            if (e.target.closest('#timeline-droppable')) e.target.closest('#timeline-droppable').classList.remove('drag-over');
-        }
-
-        function handleDragEnd() {
-            document.getElementById('drag-placeholder')?.classList.add('hidden');
-            document.getElementById('timeline-droppable')?.classList.remove('drag-over');
-            state.draggedPatient = null;
-            dragInsertionPoint = null;
-        }
-
-        function handleDrop(e) {
-            e.preventDefault();
-            const timelineEl = e.target.closest('#timeline-droppable');
-            const patient = state.draggedPatient;
-
-            if (!patient) return; // Nothing is being dragged
-
-            if (timelineEl && dragInsertionPoint !== null) {
-                const newStartMins = dragInsertionPoint;
-                const existingAppointment = state.appointments.find(a => a.id === patient.id);
-
-                // If the drop target is a gap, check if the patient fits
-                const gapEl = e.target.closest('.timeline-gap');
-                if (gapEl) {
-                    const gapDuration = parseInt(gapEl.dataset.duration, 10);
-                    if (patient.duration > gapDuration) {
-                        setNotification(`Session (${patient.duration}m) is too long for this gap (${gapDuration}m).`, 'error');
-                        return; // Abort drop
-                    }
-                }
-
-                if (existingAppointment) {
-                    existingAppointment.start = minutesTo24hTime(newStartMins);
-                } else {
-                    state.patientQueue = state.patientQueue.filter(p => p.id !== patient.id);
-                    state.appointments.push({ ...patient, start: minutesTo24hTime(newStartMins), completed: false });
-                }
-                state.appointments.sort((a,b) => timeStringToMinutes(a.start) - timeStringToMinutes(b.start));
-                pushScheduleFrom(patient.id);
-                setNotification(`${patient.name} scheduled at ${minutesToTime(newStartMins)}`, 'success');
-                render();
-            }
-        }
-
-        function handleResizeMouseDown(e) {
-            const handle = e.target.closest('.resize-handle');
-            if (!handle) return;
-            
-            e.preventDefault();
-
-            const appointmentEl = handle.closest('.timeline-appointment-item');
-            const appointmentId = appointmentEl.dataset.id;
-            const appointment = state.appointments.find(a => a.id === appointmentId);
-
-            resizingState = {
-                appointmentId: appointment.id,
-                direction: handle.dataset.direction,
-                initialY: e.clientY,
-                initialStartMins: timeStringToMinutes(appointment.start),
-                initialDuration: appointment.duration
-            };
-            
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp, { once: true });
-        }
-        
-        // Initial Load
-        init();
     </script>
 </body>
 </html>
+
+

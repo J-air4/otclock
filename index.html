@@ -141,7 +141,7 @@
             ACTIONS: {
                 SAVE: 'save', PRINT: 'print', CLEAR_DAY: 'clear-day', CONFIRM_CLEAR: 'confirm-clear', CANCEL_CLEAR: 'cancel-clear',
                 ADD_PATIENT: 'add-patient', ADD_PATIENT_PRESET: 'add-patient-preset', REMOVE_PATIENT: 'remove-patient',
-                AUTO_SCHEDULE: 'auto-schedule', REOPTIMIZE_SCHEDULE: 'reoptimize-schedule', EDIT_APPOINTMENT: 'edit-appointment', DELETE_APPOINTMENT: 'delete-appointment',
+                AUTO_SCHEDULE: 'auto-schedule', EDIT_APPOINTMENT: 'edit-appointment', DELETE_APPOINTMENT: 'delete-appointment',
                 TOGGLE_COMPLETE: 'toggle-complete', ADD_BREAK: 'add-break', DELETE_BREAK: 'delete-break', ADD_TASK: 'add-task',
                 DELETE_TASK: 'delete-task', CANCEL_EDIT: 'cancel-edit', SAVE_EDIT: 'save-edit',
                 ADJUST_TIME: 'adjust-time'
@@ -578,7 +578,6 @@
                     case Constants.ACTIONS.ADD_PATIENT_PRESET: this.addPatientToQueue(parseInt(btn.dataset.duration)); break;
                     case Constants.ACTIONS.REMOVE_PATIENT: this.removePatientFromQueue(btn.closest('[data-patient-id]').dataset.patientId); break;
                     case Constants.ACTIONS.AUTO_SCHEDULE: this.autoSchedule(); break;
-                    case Constants.ACTIONS.REOPTIMIZE_SCHEDULE: this.reoptimizeSchedule(); break;
                     case Constants.ACTIONS.EDIT_APPOINTMENT: this.openEditModal(btn.closest('[data-id]').dataset.id); break;
                     case Constants.ACTIONS.TOGGLE_COMPLETE: this.toggleAppointmentComplete(btn.closest('[data-id]').dataset.id); break;
                     case Constants.ACTIONS.DELETE_APPOINTMENT: this.removeAppointment(btn.closest('[data-id]').dataset.id); break;
@@ -709,27 +708,6 @@
                 } else {
                     NotificationSystem.show("No suitable gaps found to schedule patients.", "warning");
                 }
-            }
-
-            reoptimizeSchedule() {
-                const { appointments, patientQueue } = this.stateManager.state;
-                if (appointments.length === 0) {
-                    NotificationSystem.show("No sessions to re-optimize.", "info");
-                    return;
-                }
-
-                const queuedPatientNames = new Set(patientQueue.map(p => p.name));
-                const newPatientQueue = [...patientQueue];
-
-                appointments.forEach(apt => {
-                    if (!queuedPatientNames.has(apt.name)) {
-                        newPatientQueue.push({ id: `p-${Date.now()}-${apt.name}`, name: apt.name, duration: apt.duration });
-                    }
-                });
-
-                this.stateManager.setState({ appointments: [], patientQueue: newPatientQueue }, false);
-                this.autoSchedule();
-                NotificationSystem.show("Schedule has been re-optimized.", "success");
             }
 
             addPatient() {
@@ -1100,10 +1078,7 @@
                         <div id="patient-list" class="space-y-2 max-h-48 overflow-y-auto p-1 bg-gray-900/50 rounded min-h-[4rem]">
                             ${queue.map(p => `<div draggable="true" class="patient-item flex justify-between items-center p-2 rounded-md shadow-sm cursor-grab active:cursor-grabbing border ${this._getAppointmentColor(p.duration)}" data-patient-id="${p.id}"><span class="font-semibold text-base">${p.name} (${p.duration} min)</span><button data-action="${Constants.ACTIONS.REMOVE_PATIENT}" class="p-1 hover:bg-white/10 rounded-full">${getIcon('Trash2', 14)}</button></div>`).join('')}
                         </div>
-                        <div class="flex gap-2 mt-4">
-                            <button data-action="${Constants.ACTIONS.AUTO_SCHEDULE}" class="w-full py-2 px-4 bg-gray-700 text-yellow-300 font-semibold rounded-lg hover:bg-gray-600 flex items-center justify-center gap-2">${getIcon('Zap')} Optimize</button>
-                            <button data-action="${Constants.ACTIONS.REOPTIMIZE_SCHEDULE}" class="w-full py-2 px-4 bg-blue-800/80 text-blue-200 rounded-lg hover:bg-blue-700/80 flex items-center justify-center gap-2">${getIcon('BrainCircuit')} Re-Optimize</button>
-                        </div>
+                        <button data-action="${Constants.ACTIONS.AUTO_SCHEDULE}" class="w-full mt-4 py-2 px-4 bg-gray-700 text-yellow-300 font-semibold rounded-lg hover:bg-gray-600 flex items-center justify-center gap-2">${getIcon('Zap')} Optimize Schedule</button>
                     </div>`;
             }
 

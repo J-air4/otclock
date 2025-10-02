@@ -657,16 +657,16 @@
                     if (gap.duration >= patientData.duration + settings.transitionTime) {
                         const newStart = TimeUtils.minutesTo24hTime(gap.start);
                         const isExistingAppointment = appointments.some(a => a.id === draggedPatientId);
-
+                        
                         let newAppointments;
                         if (isExistingAppointment) {
                             newAppointments = appointments.map(a => a.id === draggedPatientId ? { ...a, start: newStart } : a);
                         } else {
                             newAppointments = [...appointments, { ...patientData, id:`appt-${Date.now()}`, start: newStart, completed: false }];
                         }
-
+                        
                         const newQueue = patientQueue.filter(p => p.id !== draggedPatientId);
-
+                        
                         this.app.updateStateAndSchedule({
                             appointments: newAppointments.sort((a,b) => TimeUtils.timeStringToMinutes(a.start) - TimeUtils.timeStringToMinutes(b.start)),
                             patientQueue: newQueue
@@ -703,7 +703,7 @@
                 if (scheduledPatientIds.size > 0) {
                     this.app.updateStateAndSchedule({
                         appointments: newAppointments,
-                        patientQueue: sortedQueue.filter(p => !scheduledPatientIds.has(p.id))
+                        patientQueue: patientQueue.filter(p => !scheduledPatientIds.has(p.id)) 
                     });
                     NotificationSystem.show(`${scheduledPatientIds.size} patient(s) auto-scheduled!`, "success");
                 } else {

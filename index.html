@@ -525,18 +525,61 @@
             }
 
             updateStateAndSchedule(updates) {
-                this.stateManager.setState(updates, false); // Update state without notifying yet
+                const oldStartTime = this.stateManager.state.settings.workDay.startTime;
+                const newStartTime = updates.settings?.workDay?.startTime;
+
+                let processedUpdates = { ...updates };
+
+                if (newStartTime && oldStartTime !== newStartTime) {
+                    const oldStartMins = TimeUtils.timeStringToMinutes(oldStartTime);
+                    const newStartMins = TimeUtils.timeStringToMinutes(newStartTime);
+                    const shiftMins = newStartMins - oldStartMins;
+
+                    if (shiftMins !== 0) {
+                        const currentState = this.stateManager.state;
+
+                        const shiftedAppointments = currentState.appointments.map(item => {
+                            const currentStartMins = TimeUtils.timeStringToMinutes(item.start);
+                            return { ...item, start: TimeUtils.minutesTo24hTime(currentStartMins + shiftMins) };
+                        });
+
+                        const shiftedBreaks = currentState.settings.breaks.map(item => {
+                            const currentStartMins = TimeUtils.timeStringToMinutes(item.start);
+                            const currentEndMins = TimeUtils.timeStringToMinutes(item.end);
+                            return { ...item, start: TimeUtils.minutesTo24hTime(currentStartMins + shiftMins), end: TimeUtils.minutesTo24hTime(currentEndMins + shiftMins) };
+                        });
+
+                        const shiftedTasks = currentState.settings.otherTasks.map(item => {
+                            const currentStartMins = TimeUtils.timeStringToMinutes(item.start);
+                            const currentEndMins = TimeUtils.timeStringToMinutes(item.end);
+                            return { ...item, start: TimeUtils.minutesTo24hTime(currentStartMins + shiftMins), end: TimeUtils.minutesTo24hTime(currentEndMins + shiftMins) };
+                        });
+
+                        processedUpdates = {
+                            ...updates,
+                            appointments: shiftedAppointments,
+                            settings: {
+                                ...currentState.settings,
+                                ...updates.settings,
+                                breaks: shiftedBreaks,
+                                otherTasks: shiftedTasks,
+                            }
+                        };
+                    }
+                }
+
+                this.stateManager.setState(processedUpdates, false);
+
                 const nextState = this.stateManager.state;
                 const schedule = ScheduleCalculator.calculateScheduleMetrics(nextState);
 
                 const { productivityCalculator } = nextState;
                 let newProdCalc = { ...productivityCalculator };
-                // Only auto-update the calculator's end time if it hasn't been manually set from the default
                 if (schedule && schedule.projectedClockOutMins > 0 && productivityCalculator.endTime === Constants.DEFAULT_END_TIME) {
                     newProdCalc.endTime = TimeUtils.minutesTo24hTime(schedule.projectedClockOutMins);
                 }
 
-                this.stateManager.setState({ schedule, productivityCalculator: newProdCalc }, true); // Now update schedule and notify
+                this.stateManager.setState({ schedule, productivityCalculator: newProdCalc }, true);
             }
             
             saveAll() {

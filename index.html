@@ -294,14 +294,8 @@
                         isWorkdayPanelOpen: true,
                         isTasksPanelOpen: false
                     },
-                    manualCalculator: {
-                        productivity: null,
-                        clockOut: null,
-                        txTime: null,
-                        productivityInput: null,
-                        clockOutInput: '',
-                        lunchOut: '',
-                        lunchIn: ''
+                    productivityCalculator: {
+                        endTime: ''
                     }
                 };
             }
@@ -411,16 +405,14 @@
                     });
 
                     const gaps = this.calculateGaps(allScheduledItems, dayStartMins, state.settings);
-
-                    const totalBillableTime = state.appointments.reduce((sum, apt) => sum + apt.duration, 0) +
-                                        state.settings.otherTasks
-                                            .filter(t => t.type === 'billable')
-                                            .reduce((sum, t) => sum + (TimeUtils.timeStringToMinutes(t.end) - TimeUtils.timeStringToMinutes(t.start)), 0);
+                    const metrics = this.calculateProductivityMetrics(state, state.productivityCalculator.endTime);
+                    const suggestions = this.generateSuggestions(state, gaps, lastEnd, metrics);
 
                     return {
                         timelineItems: [...allScheduledItems, ...gaps.map(g => ({...g, startMins: g.start, endMins: g.end }))].sort((a,b) => a.startMins - b.startMins),
+                        ...metrics,
+                        suggestions,
                         lastEndMins: lastEnd,
-                        totalBillableTime,
                         gaps
                     };
                 } catch (error) { ErrorHandler.logError(error, 'ScheduleCalculation'); return null; }
@@ -443,41 +435,49 @@
                 return gaps;
             }
 
-            static calculateProductivityMetrics(state, allScheduledItems, lastEnd) {
-                const totalTreatmentTime = state.appointments.reduce((sum, apt) => sum + apt.duration, 0);
-                const billableTaskTime = state.settings.otherTasks.filter(t => t.type === 'billable').reduce((sum, t) => sum + (TimeUtils.timeStringToMinutes(t.end) - TimeUtils.timeStringToMinutes(t.start)), 0);
+            static calculateProductivityMetrics(state, clockOutTime) {
+                const totalBillableTime = state.appointments.reduce((sum, apt) => sum + apt.duration, 0) +
+                                        state.settings.otherTasks
+                                            .filter(t => t.type === 'billable')
+                                            .reduce((sum, t) => sum + (TimeUtils.timeStringToMinutes(t.end) - TimeUtils.timeStringToMinutes(t.start)), 0);
 
-                const totalBillableTime = totalTreatmentTime + billableTaskTime;
+                const clockInMinutes = TimeUtils.timeStringToMinutes(state.settings.workDay.startTime);
 
-                let projectedClockOutMins = 0, productivity = 0;
-                const dayStartMins = TimeUtils.timeStringToMinutes(state.settings.workDay.startTime);
+                const totalBreakTime = state.settings.breaks.reduce((sum, br) => sum + (TimeUtils.timeStringToMinutes(br.end) - TimeUtils.timeStringToMinutes(br.start)), 0);
+                const nonBillableTaskTime = state.settings.otherTasks.filter(t => t.type === 'non-billable').reduce((sum, t) => sum + (TimeUtils.timeStringToMinutes(t.end) - TimeUtils.timeStringToMinutes(t.start)), 0);
+                const timeUnavailable = totalBreakTime + nonBillableTaskTime;
 
-                if (state.settings.productivityTarget > 0 && totalBillableTime > 0) {
-                    const requiredTotalWorkTime = (totalBillableTime / (state.settings.productivityTarget / 100));
-                    projectedClockOutMins = dayStartMins + requiredTotalWorkTime;
+                // Calculate productivity based on user-defined clock-out time
+                let productivity = 0;
+                if (clockOutTime && clockOutTime !== '') {
+                    const clockOutMinutes = TimeUtils.timeStringToMinutes(clockOutTime);
+                    const dayLength = clockOutMinutes - clockInMinutes;
+                    const workTime = dayLength - timeUnavailable;
 
-                    const totalMinutesOnJob = lastEnd - dayStartMins;
-                    if (totalMinutesOnJob > 0) {
-                        productivity = ((totalBillableTime / totalMinutesOnJob) * 100).toFixed(1);
+                    if (workTime > 0) {
+                        productivity = ((totalBillableTime * 100) / workTime);
                     }
                 }
+
+                // Calculate projected clock-out time to meet target
+                let projectedClockOutMins = 0;
+                if (state.settings.productivityTarget > 0 && totalBillableTime > 0) {
+                    const requiredTotalWorkTime = (totalBillableTime * 100) / state.settings.productivityTarget;
+                    projectedClockOutMins = clockInMinutes + requiredTotalWorkTime + timeUnavailable;
+                }
+
                 return {
                     totalBillableTime,
                     projectedClockOutMins,
-                    productivity,
-                    meetsTarget: projectedClockOutMins > 0 && lastEnd >= projectedClockOutMins
+                    productivity: productivity > 0 ? productivity.toFixed(1) : "0.0",
+                    meetsTarget: productivity >= state.settings.productivityTarget
                 };
             }
 
             static generateSuggestions(state, gaps, lastEnd, metrics) {
                 const suggestions = [];
                 if (metrics.projectedClockOutMins > 0) {
-                    suggestions.push(`To meet your <b>${state.settings.productivityTarget}% target</b>, you can clock out around <b>${TimeUtils.minutesToTime(metrics.projectedClockOutMins)}</b>.`);
-
-                    if (lastEnd > metrics.projectedClockOutMins) {
-                        suggestions.push(`Note: Your last task ends at <b>${TimeUtils.minutesToTime(lastEnd)}</b>, but you've already met your productivity goal for the time worked.`);
-                    }
-
+                    suggestions.push(`To meet your <b>${state.settings.productivityTarget}% target</b>, you should clock out around <b>${TimeUtils.minutesToTime(metrics.projectedClockOutMins)}</b>.`);
                 } else {
                     suggestions.push(`Add a billable session to calculate your productivity and target clock-out time.`);
                 }
@@ -673,56 +673,12 @@
                 });
             }
 
-            getClockOut() {
-                const { manualCalculator, settings, schedule } = this.stateManager.state;
-                const txTime = manualCalculator.txTime || schedule.totalBillableTime;
-                const clockIn = settings.workDay.startTime;
-                const lunchOut = manualCalculator.lunchOut;
-                const lunchIn = manualCalculator.lunchIn;
-                const productivityInput = manualCalculator.productivityInput || settings.productivityTarget;
-
-                if (productivityInput <= 0) {
-                    NotificationSystem.show("Please enter a valid Target Productivity.", "warning");
-                    return;
-                }
-
-                let clockInMinutes = TimeUtils.timeStringToMinutes(clockIn);
-                let lunchOutMinutes = TimeUtils.timeStringToMinutes(lunchOut);
-                let lunchInMinutes = TimeUtils.timeStringToMinutes(lunchIn);
-
-                if (lunchOutMinutes < clockInMinutes && lunchOut) lunchOutMinutes += 24 * 60;
-                if (lunchInMinutes < lunchOutMinutes && lunchIn) lunchInMinutes += 24 * 60;
-
-                const lunchBreak = (lunchInMinutes > lunchOutMinutes) ? (lunchInMinutes - lunchOutMinutes) : 0;
-                const requiredWorkMinutes = (txTime * 100) / productivityInput;
-                const clockOutMinutes = clockInMinutes + requiredWorkMinutes + lunchBreak;
-
-                this.stateManager.setState({
-                    manualCalculator: {
-                        ...this.stateManager.state.manualCalculator,
-                        clockOut: TimeUtils.minutesToTime(clockOutMinutes)
-                    }
-                });
-            }
-
-            handleCalculatorInputChange(target) {
-                const { dataset, value, type } = target;
-                const field = dataset.calculatorField;
-                const val = type === 'number' ? (parseFloat(value) || null) : value;
-
-                const { manualCalculator } = this.stateManager.state;
-                const newCalculatorState = { ...manualCalculator, [field]: val };
-                this.stateManager.setState({ manualCalculator: newCalculatorState });
-            }
-
             handleInput(e) {
                 const { value, dataset, id } = e.target;
                  if (id === 'edit-duration-input') {
                     this._handleModalInputChange({ duration: value });
                 } else if (dataset.field) {
                     this.handleSettingChange(e.target);
-                } else if (dataset.calculatorField) {
-                    this.handleCalculatorInputChange(e.target);
                 }
             }
 
@@ -1140,7 +1096,7 @@
                 this._renderModals(state.modals);
                 this._renderPatientQueue(state.patientQueue);
                 this._renderSettingsPanel(state.settings, state.ui);
-                this._renderDaySummary(state.schedule, state.appointments, state.patientQueue, state.settings, state.manualCalculator);
+                this._renderDaySummary(state.schedule, state.appointments, state.patientQueue, state.settings, state.productivityCalculator);
                 this._renderScheduleTimeline(state.schedule, state.settings);
             }
 
@@ -1333,27 +1289,28 @@
                 container.appendChild(tasksDetails);
             }
 
-            _renderDaySummary(schedule, appointments, patientQueue, settings, manualCalculator) {
+            _renderDaySummary(schedule, appointments, patientQueue, settings, productivityCalculator) {
                 const container = document.getElementById('day-summary-container');
                 if (!schedule) { container.innerHTML = ''; return; }
 
                 const patientsSeenCount = appointments.filter(a => a.completed).length;
-                const clockOutDisplay = manualCalculator.clockOut || '--:--';
-                const productivityDisplay = manualCalculator.productivity || '--.-- %';
+                const clockOutIsSet = productivityCalculator.endTime !== '';
+                const productivityDisplay = clockOutIsSet && schedule.productivity > 0 ? `${schedule.productivity}%` : '--.-- %';
+                const productivityColor = schedule.meetsTarget ? 'text-green-400' : 'text-yellow-400';
 
                 container.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
                     <h2 class="text-3xl font-bold text-gray-200 mb-4">Day Summary</h2>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                         <div>
-                            <div class="text-3xl sm:text-4xl font-bold text-gray-300" id="get-clock-out">${clockOutDisplay}</div>
+                            <div class="text-3xl sm:text-4xl font-bold ${schedule.meetsTarget ? 'text-green-400' : 'text-gray-300'}">${schedule.projectedClockOutMins > 0 ? TimeUtils.minutesToTime(schedule.projectedClockOutMins) : "--:--"}</div>
                             <div class="text-base text-gray-400">Target Clock-Out</div>
                         </div>
                         <div>
-                            <div class="text-3xl sm:text-4xl font-bold text-yellow-400" id="total-billable-time">${Math.floor(schedule.totalBillableTime/60)}h ${schedule.totalBillableTime % 60}m</div>
+                            <div class="text-3xl sm:text-4xl font-bold text-yellow-400">${Math.floor(schedule.totalBillableTime/60)}h ${schedule.totalBillableTime % 60}m</div>
                             <div class="text-base text-gray-400">Total Billable</div>
                         </div>
                         <div>
-                            <div class="text-3xl sm:text-4xl font-bold text-yellow-400" id="get-productivity-out">${productivityDisplay}</div>
+                            <div class="text-3xl sm:text-4xl font-bold ${productivityColor}">${productivityDisplay}</div>
                             <div class="text-base text-gray-400">Productivity</div>
                         </div>
                         <div>
@@ -1361,42 +1318,27 @@
                             <div class="text-base text-gray-400">Unscheduled</div>
                         </div>
                     </div>
-                    <details id="details-productivity-manual" class="mt-4 bg-gray-900/50 rounded-lg p-3 border border-gray-700" open>
-                        <summary class="font-semibold text-lg text-gray-300 cursor-pointer flex items-center gap-2">${getIcon('TrendingUp')} Manual Productivity Calculator</summary>
-                        <div class="mt-4 space-y-4 pt-4 border-t border-gray-700">
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label for="tx-time" class="block text-sm font-medium text-gray-400">Total Treatment Time (min)</label>
-                                    <input type="number" id="tx-time" data-calculator-field="txTime" class="w-full mt-1 px-3 py-2 bg-gray-700 border-gray-600 text-gray-200 rounded-md" value="${manualCalculator.txTime || schedule.totalBillableTime}">
-                                </div>
-                                <div>
-                                    <label for="productivity-input" class="block text-sm font-medium text-gray-400">Target Productivity (%)</label>
-                                    <input type="number" id="productivity-input" data-calculator-field="productivityInput" class="w-full mt-1 px-3 py-2 bg-gray-700 border-gray-600 text-gray-200 rounded-md" value="${manualCalculator.productivityInput || settings.productivityTarget}">
-                                </div>
-                                <div>
-                                    <label for="clockIn" class="block text-sm font-medium text-gray-400">Clock In</label>
-                                    <input type="time" id="clockIn" class="w-full mt-1 px-3 py-2 bg-gray-700 border-gray-600 text-gray-200 rounded-md" value="${settings.workDay.startTime}" readonly>
-                                </div>
-                                <div>
-                                    <label for="clock-out" class="block text-sm font-medium text-gray-400">Clock Out</label>
-                                    <input type="time" id="clock-out" data-calculator-field="clockOutInput" class="w-full mt-1 px-3 py-2 bg-gray-700 border-gray-600 text-gray-200 rounded-md" value="${manualCalculator.clockOutInput}">
-                                </div>
-                                <div>
-                                    <label for="lunch-out" class="block text-sm font-medium text-gray-400">Lunch Out</label>
-                                    <input type="time" id="lunch-out" data-calculator-field="lunchOut" class="w-full mt-1 px-3 py-2 bg-gray-700 border-gray-600 text-gray-200 rounded-md" value="${manualCalculator.lunchOut}">
-                                </div>
-                                <div>
-                                    <label for="lunchIn" class="block text-sm font-medium text-gray-400">Lunch In</label>
-                                    <input type="time" id="lunchIn" data-calculator-field="lunchIn" class="w-full mt-1 px-3 py-2 bg-gray-700 border-gray-600 text-gray-200 rounded-md" value="${manualCalculator.lunchIn}">
-                                </div>
-                            </div>
-                            <div class="flex gap-4 mt-4">
-                                <button data-action="get-productivity" class="w-full py-2 px-4 bg-yellow-500 text-gray-900 font-semibold rounded-lg hover:bg-yellow-400">Get Productivity</button>
-                                <button data-action="get-clock-out" class="w-full py-2 px-4 bg-yellow-500 text-gray-900 font-semibold rounded-lg hover:bg-yellow-400">Get Clock Out</button>
-                            </div>
+                    <div class="mt-4 p-3 bg-gray-900/50 border border-gray-700 rounded-lg flex items-start gap-3">
+                        <span class="text-yellow-400 mt-1 flex-shrink-0">${getIcon('BrainCircuit', 20)}</span>
+                        <div>
+                            <h4 class="font-semibold text-lg text-yellow-400">Actionable Insights</h4>
+                            ${schedule.suggestions.map(s => `<p class="text-base text-gray-300">${s.replace(/<b>/g, '<b class="text-yellow-300">')}</p>`).join('')}
                         </div>
-                    </details>
+                    </div>
+                    ${this._renderProductivityCalculator(schedule, settings, productivityCalculator)}
                 </div>`;
+            }
+
+            _renderProductivityCalculator(schedule, settings, { endTime }) {
+                return `<details id="details-productivity" class="mt-4 bg-gray-900/50 rounded-lg p-3 border border-gray-700">
+                    <summary class="font-semibold text-lg text-gray-300 cursor-pointer flex items-center gap-2">${getIcon('TrendingUp')} Productivity Calculator</summary>
+                    <div class="mt-4 space-y-4 pt-4 border-t border-gray-700">
+                        <div class="space-y-2">
+                            <label class="block text-base font-medium text-gray-400">Enter your Clock-Out Time to calculate productivity:</label>
+                            ${this._renderCustomTimeInput(endTime, 'productivity.endTime')}
+                        </div>
+                    </div>
+                </details>`;
             }
 
             _renderScheduleTimeline(schedule, settings) {

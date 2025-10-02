@@ -186,15 +186,16 @@
                 notificationDiv.id = notificationId;
                 notificationDiv.className = `fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg animate-fade-in-down border ${typeClasses[type]}`;
 
+                const parser = new DOMParser();
                 const iconSpan = document.createElement('span');
-                iconSpan.innerHTML = iconSVG;
+                iconSpan.appendChild(parser.parseFromString(iconSVG, 'image/svg+xml').documentElement);
 
                 const messageSpan = document.createElement('span');
                 messageSpan.textContent = message;
 
                 const closeButton = document.createElement('button');
                 closeButton.className = "ml-4 p-1 rounded-full hover:bg-white/10";
-                closeButton.innerHTML = getIcon('X', 16);
+                closeButton.appendChild(parser.parseFromString(getIcon('X', 16), 'image/svg+xml').documentElement);
                 closeButton.onclick = () => notificationDiv.remove();
 
                 notificationDiv.appendChild(iconSpan);

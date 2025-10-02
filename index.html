@@ -39,20 +39,6 @@
             transform: scale(1.02);
             box-shadow: 0 4px 8px rgba(0,0,0,0.5);
         }
-
-        .resize-handle {
-            position: absolute;
-            left: 0;
-            width: 100%;
-            height: 8px;
-            cursor: ns-resize;
-            z-index: 30;
-        }
-        .timeline-appointment-item:hover .resize-handle {
-            opacity: 1;
-        }
-        .resize-handle.top { top: -4px; }
-        .resize-handle.bottom { bottom: -4px; }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-300">
@@ -256,10 +242,8 @@
                 const { breaks, otherTasks, transitionTime } = settings;
 
                 const newStartMins = TimeUtils.timeStringToMinutes(newItem.start);
-                // An appointment has a `duration`, breaks/tasks have an `end` time.
-                const isNewItemAppointment = newItem.hasOwnProperty('duration');
-                const newEndMins = isNewItemAppointment
-                    ? newStartMins + newItem.duration + transitionTime
+                const newEndMins = newItem.duration
+                    ? newStartMins + newItem.duration + (newItem.type === 'appointment' ? transitionTime : 0)
                     : TimeUtils.timeStringToMinutes(newItem.end);
 
                 const allItems = [
@@ -270,11 +254,6 @@
 
                 for (const item of allItems) {
                     if (excludeId && item.id === excludeId) continue;
-
-                    // If the new item is an appointment, we only check against non-appointments.
-                    if (isNewItemAppointment && item.itemType === 'appointment') {
-                        continue; // Allow appointments to overlap with each other.
-                    }
 
                     const itemStartMins = TimeUtils.timeStringToMinutes(item.start);
                     const itemEndMins = item.duration
@@ -302,13 +281,13 @@
                     patientQueue: [],
                     schedule: null,
                     modals: { clearDay: false, editAppointment: false, editingAppointment: null },
-                    dragState: { draggedItemId: null, itemType: null, initialY: 0, initialStartMins: 0, initialDuration: 0 },
+                    dragState: { draggedPatientId: null },
                     ui: {
                         patientCounter: 1,
                         isWorkdayPanelOpen: true,
                         isTasksPanelOpen: false
                     },
-                    productivityCalculator: { endTime: '' }
+                    productivityCalculator: { extraMinutes: '', endTime: Constants.DEFAULT_END_TIME }
                 };
             }
             subscribe(listener) {
@@ -525,61 +504,18 @@
             }
 
             updateStateAndSchedule(updates) {
-                const oldStartTime = this.stateManager.state.settings.workDay.startTime;
-                const newStartTime = updates.settings?.workDay?.startTime;
-
-                let processedUpdates = { ...updates };
-
-                if (newStartTime && oldStartTime !== newStartTime) {
-                    const oldStartMins = TimeUtils.timeStringToMinutes(oldStartTime);
-                    const newStartMins = TimeUtils.timeStringToMinutes(newStartTime);
-                    const shiftMins = newStartMins - oldStartMins;
-
-                    if (shiftMins !== 0) {
-                        const currentState = this.stateManager.state;
-
-                        const shiftedAppointments = currentState.appointments.map(item => {
-                            const currentStartMins = TimeUtils.timeStringToMinutes(item.start);
-                            return { ...item, start: TimeUtils.minutesTo24hTime(currentStartMins + shiftMins) };
-                        });
-
-                        const shiftedBreaks = currentState.settings.breaks.map(item => {
-                            const currentStartMins = TimeUtils.timeStringToMinutes(item.start);
-                            const currentEndMins = TimeUtils.timeStringToMinutes(item.end);
-                            return { ...item, start: TimeUtils.minutesTo24hTime(currentStartMins + shiftMins), end: TimeUtils.minutesTo24hTime(currentEndMins + shiftMins) };
-                        });
-
-                        const shiftedTasks = currentState.settings.otherTasks.map(item => {
-                            const currentStartMins = TimeUtils.timeStringToMinutes(item.start);
-                            const currentEndMins = TimeUtils.timeStringToMinutes(item.end);
-                            return { ...item, start: TimeUtils.minutesTo24hTime(currentStartMins + shiftMins), end: TimeUtils.minutesTo24hTime(currentEndMins + shiftMins) };
-                        });
-
-                        processedUpdates = {
-                            ...updates,
-                            appointments: shiftedAppointments,
-                            settings: {
-                                ...currentState.settings,
-                                ...updates.settings,
-                                breaks: shiftedBreaks,
-                                otherTasks: shiftedTasks,
-                            }
-                        };
-                    }
-                }
-
-                this.stateManager.setState(processedUpdates, false);
-
+                this.stateManager.setState(updates, false); // Update state without notifying yet
                 const nextState = this.stateManager.state;
                 const schedule = ScheduleCalculator.calculateScheduleMetrics(nextState);
 
                 const { productivityCalculator } = nextState;
                 let newProdCalc = { ...productivityCalculator };
+                // Only auto-update the calculator's end time if it hasn't been manually set from the default
                 if (schedule && schedule.projectedClockOutMins > 0 && productivityCalculator.endTime === Constants.DEFAULT_END_TIME) {
                     newProdCalc.endTime = TimeUtils.minutesTo24hTime(schedule.projectedClockOutMins);
                 }
 
-                this.stateManager.setState({ schedule, productivityCalculator: newProdCalc }, true);
+                this.stateManager.setState({ schedule, productivityCalculator: newProdCalc }, true); // Now update schedule and notify
             }
             
             saveAll() {
@@ -603,11 +539,10 @@
                 this.root.addEventListener('input', this.handleInput.bind(this));
                 this.root.addEventListener('keydown', this.handleKeydown.bind(this));
                 this.root.addEventListener('dragstart', this.handleDragStart.bind(this));
-                this.root.addEventListener('dragend', () => this.stateManager.setState({ dragState: { draggedItemId: null } }, false));
+                this.root.addEventListener('dragend', () => this.stateManager.setState({ dragState: { ...this.stateManager.state.dragState, draggedPatientId: null } }, false));
                 this.root.addEventListener('dragover', (e) => { if (e.target.closest('.timeline-gap, #timeline-droppable')) e.preventDefault(); });
                 this.root.addEventListener('drop', this.handleDrop.bind(this));
                 this.root.addEventListener('blur', this.handleBlur.bind(this), true);
-                this.root.addEventListener('mousedown', this.handleResizeMouseDown.bind(this));
                 this.root.addEventListener('toggle', this.handleToggle.bind(this), true);
             }
 
@@ -649,22 +584,8 @@
                     case Constants.ACTIONS.DELETE_APPOINTMENT: this.removeAppointment(btn.closest('[data-id]').dataset.id); break;
                     case Constants.ACTIONS.CANCEL_EDIT: this.stateManager.setState({ modals: { ...modals, editAppointment: false, editingAppointment: null }}); break;
                     case Constants.ACTIONS.SAVE_EDIT: this.saveAppointmentChanges(); break;
-                    case Constants.ACTIONS.ADD_BREAK: {
-                        const scheduleForBreak = this.stateManager.state.schedule;
-                        const lastEndMinsForBreak = scheduleForBreak ? scheduleForBreak.lastEndMins : TimeUtils.timeStringToMinutes('12:00');
-                        const newStartForBreak = TimeUtils.minutesTo24hTime(lastEndMinsForBreak);
-                        const newEndForBreak = TimeUtils.minutesTo24hTime(lastEndMinsForBreak + 30);
-                        this.addListItem('breaks', { start: newStartForBreak, end: newEndForBreak, label: 'New Break' });
-                        break;
-                    }
-                    case Constants.ACTIONS.ADD_TASK: {
-                        const scheduleForTask = this.stateManager.state.schedule;
-                        const lastEndMinsForTask = scheduleForTask ? scheduleForTask.lastEndMins : TimeUtils.timeStringToMinutes('15:00');
-                        const newStartForTask = TimeUtils.minutesTo24hTime(lastEndMinsForTask);
-                        const newEndForTask = TimeUtils.minutesTo24hTime(lastEndMinsForTask + 30);
-                        this.addListItem('otherTasks', { start: newStartForTask, end: newEndForTask, label: 'New Task', type: 'non-billable' });
-                        break;
-                    }
+                    case Constants.ACTIONS.ADD_BREAK: this.addListItem('breaks', { start: '12:00', end: '12:30', label: 'New Break'}); break;
+                    case Constants.ACTIONS.ADD_TASK: this.addListItem('otherTasks', { start: '15:00', end: '15:30', label: 'New Task', type: 'non-billable'}); break;
                     case Constants.ACTIONS.DELETE_BREAK: this.removeListItem('breaks', id); break;
                     case Constants.ACTIONS.DELETE_TASK: this.removeListItem('otherTasks', id); break;
                     case Constants.ACTIONS.ADJUST_TIME:
@@ -713,95 +634,48 @@
             }
 
             handleDragStart(e) {
-                const draggableItem = e.target.closest('[draggable="true"]');
-                if (!draggableItem) return;
+                const patientItem = e.target.closest('[data-patient-id]');
+                const apptItem = e.target.closest('[data-id^="appt-"]');
+                let draggedId = null;
+                if (patientItem) draggedId = patientItem.dataset.patientId;
+                else if (apptItem) draggedId = apptItem.dataset.id;
 
-                const draggedId = draggableItem.dataset.id || draggableItem.dataset.patientId;
                 if (draggedId) {
-                    const itemType = draggableItem.classList.contains('patient-item') ? 'queue' :
-                                   draggableItem.dataset.itemType;
-                    this.stateManager.setState({
-                        dragState: {
-                            ...this.stateManager.state.dragState,
-                            draggedItemId: draggedId,
-                            itemType: itemType
-                        }
-                    }, false);
+                    this.stateManager.setState({ dragState: { ...this.stateManager.state.dragState, draggedPatientId: draggedId } }, false);
                 }
             }
 
             handleDrop(e) {
                 e.preventDefault();
                 const gapEl = e.target.closest('.timeline-gap');
-                const { draggedItemId, itemType } = this.stateManager.state.dragState;
-
-                if (!gapEl || !draggedItemId) {
-                    this.stateManager.setState({ dragState: { ...this.stateManager.state.dragState, draggedItemId: null, itemType: null } }, false);
-                    return;
-                }
-
+                const { draggedPatientId } = this.stateManager.state.dragState;
                 const { appointments, patientQueue, settings } = this.stateManager.state;
-                let draggedItem = null;
+                const patientData = patientQueue.find(p => p.id === draggedPatientId) || appointments.find(a => a.id === draggedPatientId);
 
-                if (itemType === 'queue') {
-                    draggedItem = patientQueue.find(p => p.id === draggedItemId);
-                } else if (itemType === 'appointment') {
-                    draggedItem = appointments.find(a => a.id === draggedItemId);
-                } else {
-                    draggedItem = settings.breaks.find(b => b.id === draggedItemId) || settings.otherTasks.find(t => t.id === draggedItemId);
-                }
-
-                if (draggedItem) {
+                if (gapEl && patientData) {
                     const gap = { start: parseInt(gapEl.dataset.start), duration: parseInt(gapEl.dataset.duration) };
-                    const itemDuration = (itemType === 'break' || itemType === 'task' || itemType === 'billable' || itemType === 'non-billable')
-                        ? TimeUtils.timeStringToMinutes(draggedItem.end) - TimeUtils.timeStringToMinutes(draggedItem.start)
-                        : draggedItem.duration;
-
-                    const transition = (itemType === 'queue' || itemType === 'appointment') ? settings.transitionTime : 0;
-
-                    if (gap.duration >= itemDuration + transition) {
-                        const newStartMins = gap.start;
-                        const newStart = TimeUtils.minutesTo24hTime(newStartMins);
-                        const newEnd = TimeUtils.minutesTo24hTime(newStartMins + itemDuration);
-
-                        const movedItem = { ...draggedItem, start: newStart };
-                        if (itemType === 'break' || itemType === 'task' || itemType === 'billable' || itemType === 'non-billable') {
-                            movedItem.end = newEnd;
-                        }
-
-                        const conflict = ConflictDetector.checkForConflicts(movedItem, this.stateManager.state, draggedItemId);
-                        if (conflict.hasConflict) {
-                            NotificationSystem.show(`Move conflicts with ${conflict.conflictItem.label || conflict.conflictItem.name}.`, 'error');
+                    if (gap.duration >= patientData.duration + settings.transitionTime) {
+                        const newStart = TimeUtils.minutesTo24hTime(gap.start);
+                        const isExistingAppointment = appointments.some(a => a.id === draggedPatientId);
+                        
+                        let newAppointments;
+                        if (isExistingAppointment) {
+                            newAppointments = appointments.map(a => a.id === draggedPatientId ? { ...a, start: newStart } : a);
                         } else {
-                            let newAppointments = [...appointments];
-                            let newQueue = [...patientQueue];
-                            let newSettings = { ...settings };
-
-                            if (itemType === 'queue') {
-                                newAppointments.push({ ...draggedItem, id: `appt-${Date.now()}`, start: newStart, completed: false });
-                                newQueue = newQueue.filter(p => p.id !== draggedItemId);
-                            } else if (itemType === 'appointment') {
-                                newAppointments = newAppointments.map(a => a.id === draggedItemId ? { ...a, start: newStart } : a);
-                            } else if (itemType === 'break' || itemType === 'billable' || itemType === 'non-billable') {
-                                const listName = (itemType === 'break') ? 'breaks' : 'otherTasks';
-                                const updatedList = newSettings[listName].map(item =>
-                                    item.id === draggedItemId ? { ...item, start: newStart, end: newEnd } : item
-                                );
-                                newSettings[listName] = updatedList;
-                            }
-
-                            this.app.updateStateAndSchedule({
-                                appointments: newAppointments.sort((a, b) => TimeUtils.timeStringToMinutes(a.start) - TimeUtils.timeStringToMinutes(b.start)),
-                                patientQueue: newQueue,
-                                settings: newSettings
-                            });
+                            newAppointments = [...appointments, { ...patientData, id:`appt-${Date.now()}`, start: newStart, completed: false }];
                         }
+                        
+                        const newQueue = patientQueue.filter(p => p.id !== draggedPatientId);
+                        
+                        this.app.updateStateAndSchedule({
+                            appointments: newAppointments.sort((a,b) => TimeUtils.timeStringToMinutes(a.start) - TimeUtils.timeStringToMinutes(b.start)),
+                            patientQueue: newQueue
+                        });
                     } else {
-                        NotificationSystem.show(`Item (${itemDuration}m) does not fit in gap (${gap.duration}m).`, 'error');
+                        NotificationSystem.show(`Session (${patientData.duration}m) does not fit in gap (${gap.duration}m).`, 'error');
                     }
                 }
-
-                this.stateManager.setState({ dragState: { ...this.stateManager.state.dragState, draggedItemId: null, itemType: null } }, false);
+                this.stateManager.setState({ dragState: { ...this.stateManager.state.dragState, draggedPatientId: null } }, false);
             }
             
             autoSchedule() {
@@ -829,7 +703,7 @@
                 if (scheduledPatientIds.size > 0) {
                     this.app.updateStateAndSchedule({
                         appointments: newAppointments,
-                        patientQueue: patientQueue.filter(p => !scheduledPatientIds.has(p.id))
+                        patientQueue: patientQueue.filter(p => !scheduledPatientIds.has(p.id)) 
                     });
                     NotificationSystem.show(`${scheduledPatientIds.size} patient(s) auto-scheduled!`, "success");
                 } else {
@@ -1094,134 +968,6 @@
                 });
                 NotificationSystem.show('Your schedule has been cleared.', 'success');
             }
-
-            handleResizeMouseDown(e) {
-                const handle = e.target.closest('.resize-handle');
-                if (!handle) return;
-                e.preventDefault();
-
-                const appointmentEl = handle.closest('.timeline-appointment-item');
-                const appointmentId = appointmentEl.dataset.id;
-                const appointment = this.stateManager.state.appointments.find(a => a.id === appointmentId);
-                if (!appointment) return;
-
-                this.stateManager.setState({
-                    dragState: {
-                        ...this.stateManager.state.dragState,
-                        itemType: 'resize',
-                        draggedItemId: appointmentId,
-                        initialY: e.clientY,
-                        initialStartMins: TimeUtils.timeStringToMinutes(appointment.start),
-                        initialDuration: appointment.duration,
-                        direction: handle.dataset.direction,
-                    }
-                }, false);
-
-                this.boundMouseMove = this.handleMouseMove.bind(this);
-                this.boundMouseUp = this.handleMouseUp.bind(this);
-                window.addEventListener('mousemove', this.boundMouseMove);
-                window.addEventListener('mouseup', this.boundMouseUp, { once: true });
-            }
-
-            handleMouseMove(e) {
-                const { draggedItemId, initialY, initialStartMins, initialDuration, direction } = this.stateManager.state.dragState;
-                if (!draggedItemId || this.stateManager.state.dragState.itemType !== 'resize') return;
-
-                const dy = e.clientY - initialY;
-                const dMinutes = (dy / Constants.PIXELS_PER_HOUR) * 60;
-
-                const apt = this.stateManager.state.appointments.find(a => a.id === draggedItemId);
-                if (!apt) return;
-
-                if (direction === 'bottom') {
-                    let newDuration = initialDuration + dMinutes;
-                    newDuration = Math.max(Constants.MINIMUM_SCHEDULABLE_DURATION, Math.round(newDuration / 5) * 5);
-                    apt.duration = newDuration;
-                } else if (direction === 'top') {
-                    let newStartMins = initialStartMins + dMinutes;
-                    let endMins = initialStartMins + initialDuration;
-                    newStartMins = Math.round(newStartMins / 5) * 5;
-                    let newDuration = endMins - newStartMins;
-                    if (newDuration >= Constants.MINIMUM_SCHEDULABLE_DURATION) {
-                        apt.start = TimeUtils.minutesTo24hTime(newStartMins);
-                        apt.duration = newDuration;
-                    }
-                }
-                this.app.updateStateAndSchedule({});
-            }
-
-            handleMouseUp() {
-                const { draggedItemId, initialDuration } = this.stateManager.state.dragState;
-                const appointment = this.stateManager.state.appointments.find(a => a.id === draggedItemId);
-
-                this.stateManager.setState({ dragState: { itemType: null, draggedItemId: null }}, false);
-                window.removeEventListener('mousemove', this.boundMouseMove);
-
-                if (appointment && appointment.duration > initialDuration) {
-                    this.pushScheduleFrom(appointment.id);
-                    NotificationSystem.show('Session extended and schedule pushed.', 'info');
-                }
-                this.app.updateStateAndSchedule({});
-            }
-
-            pushScheduleFrom(anchorAppointmentId) {
-                const allEvents = [
-                    ...this.stateManager.state.appointments.map(a => ({...a, eventType: 'appointment'})),
-                    ...this.stateManager.state.settings.breaks.map(b => ({...b, eventType: 'break'})),
-                    ...this.stateManager.state.settings.otherTasks.map(t => ({...t, eventType: 'otherTask'}))
-                ].sort((a, b) => TimeUtils.timeStringToMinutes(a.start) - TimeUtils.timeStringToMinutes(b.start));
-
-                const anchorIndex = allEvents.findIndex(e => e.id === anchorAppointmentId);
-                if (anchorIndex === -1 || anchorIndex === allEvents.length - 1) return;
-
-                for (let i = anchorIndex; i < allEvents.length - 1; i++) {
-                    const currentEvent = allEvents[i];
-                    const nextEvent = allEvents[i + 1];
-
-                    let currentEventEndTime;
-                    if (currentEvent.eventType === 'appointment') {
-                        currentEventEndTime = TimeUtils.timeStringToMinutes(currentEvent.start) + currentEvent.duration + this.stateManager.state.settings.transitionTime;
-                    } else {
-                        currentEventEndTime = TimeUtils.timeStringToMinutes(currentEvent.end);
-                    }
-
-                    const nextEventStartTime = TimeUtils.timeStringToMinutes(nextEvent.start);
-
-                    if (currentEventEndTime > nextEventStartTime) {
-                        if (!(currentEvent.eventType === 'appointment' && nextEvent.eventType === 'appointment')) {
-                            const pushAmount = currentEventEndTime - nextEventStartTime;
-                            const newNextEventStartTime = nextEventStartTime + pushAmount;
-
-                            nextEvent.start = TimeUtils.minutesTo24hTime(newNextEventStartTime);
-
-                            if (nextEvent.eventType === 'break' || nextEvent.eventType === 'otherTask') {
-                                const duration = TimeUtils.timeStringToMinutes(nextEvent.end) - nextEventStartTime;
-                                nextEvent.end = TimeUtils.minutesTo24hTime(newNextEventStartTime + duration);
-                            }
-                        }
-                    }
-                }
-
-                const newAppointments = [];
-                const newBreaks = [];
-                const newOtherTasks = [];
-
-                allEvents.forEach(event => {
-                    const { eventType, ...originalEvent } = event;
-                    if (eventType === 'appointment') newAppointments.push(originalEvent);
-                    else if (eventType === 'break') newBreaks.push(originalEvent);
-                    else if (eventType === 'otherTask') newOtherTasks.push(originalEvent);
-                });
-
-                this.app.updateStateAndSchedule({
-                    appointments: newAppointments,
-                    settings: {
-                        ...this.stateManager.state.settings,
-                        breaks: newBreaks,
-                        otherTasks: newOtherTasks
-                    }
-                });
-            }
         }
 
 
@@ -1251,12 +997,22 @@
                 `;
             }
             update(state) {
+                const openDetails = {};
+                this.root.querySelectorAll('details').forEach(el => {
+                    if (el.id) openDetails[el.id] = el.open;
+                });
+
                 this._renderHeader();
                 this._renderModals(state.modals);
                 this._renderPatientQueue(state.patientQueue);
                 this._renderSettingsPanel(state.settings, state.ui);
                 this._renderDaySummary(state.schedule, state.appointments, state.patientQueue, state.settings, state.productivityCalculator);
                 this._renderScheduleTimeline(state.schedule, state.settings);
+
+                for (const id in openDetails) {
+                    const detailEl = this.root.querySelector(`#${id}`);
+                    if (detailEl) detailEl.open = openDetails[id];
+                }
             }
 
             _renderHeader() {
@@ -1545,12 +1301,9 @@
                         content = document.createElement('div');
                         content.className = `timeline-appointment-item relative group pt-1 px-2 pb-2 rounded-md cursor-pointer h-full w-full border ${this._getAppointmentColor(item.duration)} ${item.completed ? 'opacity-60' : ''}`;
                         content.dataset.id = item.id;
-                        content.dataset.itemType = 'appointment';
                         content.draggable = true;
 
                         content.innerHTML = `
-                            <div class="resize-handle top" data-direction="top"></div>
-                            <div class="resize-handle bottom" data-direction="bottom"></div>
                             <div class="flex justify-between">
                                 <span class="block text-base ${item.completed ? 'line-through' : ''} opacity-80">${item.duration}m</span>
                                 <strong class="text-base font-semibold ${item.completed ? 'line-through' : ''}">${SecurityUtils.sanitizeHTML(item.name)}</strong>
@@ -1569,10 +1322,7 @@
                         wrapper.style.zIndex = '5';
 
                         content = document.createElement('div');
-                        content.className = 'p-2 rounded-md bg-gray-700/50 border-gray-600 text-gray-300 text-sm h-full w-full flex flex-col justify-center cursor-grab active:cursor-grabbing';
-                        content.draggable = true;
-                        content.dataset.id = item.id;
-                        content.dataset.itemType = item.type;
+                        content.className = 'p-2 rounded-md bg-gray-700/50 border-gray-600 text-gray-300 text-sm h-full w-full flex flex-col justify-center';
 
                         const itemHeader = document.createElement('div');
                         itemHeader.className = 'flex items-center gap-1';

@@ -242,8 +242,9 @@
                 const { breaks, otherTasks, transitionTime } = settings;
 
                 const newStartMins = TimeUtils.timeStringToMinutes(newItem.start);
-                const newEndMins = newItem.duration
-                    ? newStartMins + newItem.duration + (newItem.type === 'appointment' ? transitionTime : 0)
+                const isNewItemAppointment = newItem.hasOwnProperty('duration');
+                const newEndMins = isNewItemAppointment
+                    ? newStartMins + newItem.duration + transitionTime
                     : TimeUtils.timeStringToMinutes(newItem.end);
 
                 const allItems = [
@@ -254,6 +255,10 @@
 
                 for (const item of allItems) {
                     if (excludeId && item.id === excludeId) continue;
+
+                    if (isNewItemAppointment && item.itemType === 'appointment') {
+                        continue;
+                    }
 
                     const itemStartMins = TimeUtils.timeStringToMinutes(item.start);
                     const itemEndMins = item.duration
@@ -281,13 +286,13 @@
                     patientQueue: [],
                     schedule: null,
                     modals: { clearDay: false, editAppointment: false, editingAppointment: null },
-                    dragState: { draggedPatientId: null },
+                    dragState: { draggedItemId: null, itemType: null },
                     ui: {
                         patientCounter: 1,
                         isWorkdayPanelOpen: true,
                         isTasksPanelOpen: false
                     },
-                    productivityCalculator: { extraMinutes: '', endTime: Constants.DEFAULT_END_TIME }
+                    productivityCalculator: { endTime: '' }
                 };
             }
             subscribe(listener) {
@@ -396,7 +401,7 @@
                     });
 
                     const gaps = this.calculateGaps(allScheduledItems, dayStartMins, state.settings);
-                    const metrics = this.calculateProductivityMetrics(state, allScheduledItems, lastEnd);
+                    const metrics = this.calculateProductivityMetrics(state, state.productivityCalculator.endTime);
                     const suggestions = this.generateSuggestions(state, gaps, lastEnd, metrics);
 
                     return {
@@ -426,41 +431,47 @@
                 return gaps;
             }
 
-            static calculateProductivityMetrics(state, allScheduledItems, lastEnd) {
-                const totalTreatmentTime = state.appointments.reduce((sum, apt) => sum + apt.duration, 0);
-                const billableTaskTime = state.settings.otherTasks.filter(t => t.type === 'billable').reduce((sum, t) => sum + (TimeUtils.timeStringToMinutes(t.end) - TimeUtils.timeStringToMinutes(t.start)), 0);
+            static calculateProductivityMetrics(state, clockOutTime) {
+                const totalBillableTime = state.appointments.reduce((sum, apt) => sum + apt.duration, 0) +
+                                        state.settings.otherTasks
+                                            .filter(t => t.type === 'billable')
+                                            .reduce((sum, t) => sum + (TimeUtils.timeStringToMinutes(t.end) - TimeUtils.timeStringToMinutes(t.start)), 0);
 
-                const totalBillableTime = totalTreatmentTime + billableTaskTime;
+                const clockInMinutes = TimeUtils.timeStringToMinutes(state.settings.workDay.startTime);
 
-                let projectedClockOutMins = 0, productivity = 0;
-                const dayStartMins = TimeUtils.timeStringToMinutes(state.settings.workDay.startTime);
+                const totalBreakTime = state.settings.breaks.reduce((sum, br) => sum + (TimeUtils.timeStringToMinutes(br.end) - TimeUtils.timeStringToMinutes(br.start)), 0);
+                const nonBillableTaskTime = state.settings.otherTasks.filter(t => t.type === 'non-billable').reduce((sum, t) => sum + (TimeUtils.timeStringToMinutes(t.end) - TimeUtils.timeStringToMinutes(t.start)), 0);
+                const timeUnavailable = totalBreakTime + nonBillableTaskTime;
 
-                if (state.settings.productivityTarget > 0 && totalBillableTime > 0) {
-                    const requiredTotalWorkTime = (totalBillableTime / (state.settings.productivityTarget / 100));
-                    projectedClockOutMins = dayStartMins + requiredTotalWorkTime;
+                let productivity = 0;
+                if (clockOutTime && clockOutTime !== '') {
+                    const clockOutMinutes = TimeUtils.timeStringToMinutes(clockOutTime);
+                    const dayLength = clockOutMinutes - clockInMinutes;
+                    const workTime = dayLength - timeUnavailable;
 
-                    const totalMinutesOnJob = lastEnd - dayStartMins;
-                    if (totalMinutesOnJob > 0) {
-                        productivity = ((totalBillableTime / totalMinutesOnJob) * 100).toFixed(1);
+                    if (workTime > 0) {
+                        productivity = ((totalBillableTime * 100) / workTime);
                     }
                 }
+
+                let projectedClockOutMins = 0;
+                if (state.settings.productivityTarget > 0 && totalBillableTime > 0) {
+                    const requiredTotalWorkTime = (totalBillableTime * 100) / state.settings.productivityTarget;
+                    projectedClockOutMins = clockInMinutes + requiredTotalWorkTime + timeUnavailable;
+                }
+
                 return {
                     totalBillableTime,
                     projectedClockOutMins,
-                    productivity,
-                    meetsTarget: projectedClockOutMins > 0 && lastEnd >= projectedClockOutMins
+                    productivity: productivity > 0 ? productivity.toFixed(1) : "0.0",
+                    meetsTarget: productivity >= state.settings.productivityTarget
                 };
             }
 
             static generateSuggestions(state, gaps, lastEnd, metrics) {
                 const suggestions = [];
                 if (metrics.projectedClockOutMins > 0) {
-                    suggestions.push(`To meet your <b>${state.settings.productivityTarget}% target</b>, you can clock out around <b>${TimeUtils.minutesToTime(metrics.projectedClockOutMins)}</b>.`);
-
-                    if (lastEnd > metrics.projectedClockOutMins) {
-                        suggestions.push(`Note: Your last task ends at <b>${TimeUtils.minutesToTime(lastEnd)}</b>, but you've already met your productivity goal for the time worked.`);
-                    }
-
+                    suggestions.push(`To meet your <b>${state.settings.productivityTarget}% target</b>, you should clock out around <b>${TimeUtils.minutesToTime(metrics.projectedClockOutMins)}</b>.`);
                 } else {
                     suggestions.push(`Add a billable session to calculate your productivity and target clock-out time.`);
                 }
@@ -504,18 +515,17 @@
             }
 
             updateStateAndSchedule(updates) {
-                this.stateManager.setState(updates, false); // Update state without notifying yet
+                this.stateManager.setState(updates, false);
                 const nextState = this.stateManager.state;
                 const schedule = ScheduleCalculator.calculateScheduleMetrics(nextState);
 
                 const { productivityCalculator } = nextState;
                 let newProdCalc = { ...productivityCalculator };
-                // Only auto-update the calculator's end time if it hasn't been manually set from the default
                 if (schedule && schedule.projectedClockOutMins > 0 && productivityCalculator.endTime === Constants.DEFAULT_END_TIME) {
                     newProdCalc.endTime = TimeUtils.minutesTo24hTime(schedule.projectedClockOutMins);
                 }
 
-                this.stateManager.setState({ schedule, productivityCalculator: newProdCalc }, true); // Now update schedule and notify
+                this.stateManager.setState({ schedule, productivityCalculator: newProdCalc }, true);
             }
             
             saveAll() {
@@ -539,7 +549,7 @@
                 this.root.addEventListener('input', this.handleInput.bind(this));
                 this.root.addEventListener('keydown', this.handleKeydown.bind(this));
                 this.root.addEventListener('dragstart', this.handleDragStart.bind(this));
-                this.root.addEventListener('dragend', () => this.stateManager.setState({ dragState: { ...this.stateManager.state.dragState, draggedPatientId: null } }, false));
+                this.root.addEventListener('dragend', () => this.stateManager.setState({ dragState: { draggedItemId: null } }, false));
                 this.root.addEventListener('dragover', (e) => { if (e.target.closest('.timeline-gap, #timeline-droppable')) e.preventDefault(); });
                 this.root.addEventListener('drop', this.handleDrop.bind(this));
                 this.root.addEventListener('blur', this.handleBlur.bind(this), true);
@@ -556,7 +566,7 @@
                     } else if (panelId === 'details-tasks') {
                         updates = { ui: { ...ui, isTasksPanelOpen: e.target.open }};
                     }
-                    this.stateManager.setState(updates, false); // Don't trigger a full re-render
+                    this.stateManager.setState(updates, false);
                 }
             }
             
@@ -584,8 +594,22 @@
                     case Constants.ACTIONS.DELETE_APPOINTMENT: this.removeAppointment(btn.closest('[data-id]').dataset.id); break;
                     case Constants.ACTIONS.CANCEL_EDIT: this.stateManager.setState({ modals: { ...modals, editAppointment: false, editingAppointment: null }}); break;
                     case Constants.ACTIONS.SAVE_EDIT: this.saveAppointmentChanges(); break;
-                    case Constants.ACTIONS.ADD_BREAK: this.addListItem('breaks', { start: '12:00', end: '12:30', label: 'New Break'}); break;
-                    case Constants.ACTIONS.ADD_TASK: this.addListItem('otherTasks', { start: '15:00', end: '15:30', label: 'New Task', type: 'non-billable'}); break;
+                    case Constants.ACTIONS.ADD_BREAK: {
+                        const scheduleForBreak = this.stateManager.state.schedule;
+                        const lastEndMinsForBreak = scheduleForBreak ? scheduleForBreak.lastEndMins : TimeUtils.timeStringToMinutes('12:00');
+                        const newStartForBreak = TimeUtils.minutesTo24hTime(lastEndMinsForBreak);
+                        const newEndForBreak = TimeUtils.minutesTo24hTime(lastEndMinsForBreak + 30);
+                        this.addListItem('breaks', { start: newStartForBreak, end: newEndForBreak, label: 'New Break' });
+                        break;
+                    }
+                    case Constants.ACTIONS.ADD_TASK: {
+                        const scheduleForTask = this.stateManager.state.schedule;
+                        const lastEndMinsForTask = scheduleForTask ? scheduleForTask.lastEndMins : TimeUtils.timeStringToMinutes('15:00');
+                        const newStartForTask = TimeUtils.minutesTo24hTime(lastEndMinsForTask);
+                        const newEndForTask = TimeUtils.minutesTo24hTime(lastEndMinsForTask + 30);
+                        this.addListItem('otherTasks', { start: newStartForTask, end: newEndForTask, label: 'New Task', type: 'non-billable' });
+                        break;
+                    }
                     case Constants.ACTIONS.DELETE_BREAK: this.removeListItem('breaks', id); break;
                     case Constants.ACTIONS.DELETE_TASK: this.removeListItem('otherTasks', id); break;
                     case Constants.ACTIONS.ADJUST_TIME:
@@ -607,9 +631,6 @@
                     this._handleModalInputChange({ duration: value });
                 } else if (dataset.field) {
                     this.handleSettingChange(e.target);
-                } else if (id === 'extra-minutes-input') {
-                    const updates = { productivityCalculator: { ...this.stateManager.state.productivityCalculator, extraMinutes: value } };
-                    this.app.updateStateAndSchedule(updates);
                 }
             }
 
@@ -634,48 +655,95 @@
             }
 
             handleDragStart(e) {
-                const patientItem = e.target.closest('[data-patient-id]');
-                const apptItem = e.target.closest('[data-id^="appt-"]');
-                let draggedId = null;
-                if (patientItem) draggedId = patientItem.dataset.patientId;
-                else if (apptItem) draggedId = apptItem.dataset.id;
+                const draggableItem = e.target.closest('[draggable="true"]');
+                if (!draggableItem) return;
 
+                const draggedId = draggableItem.dataset.id || draggableItem.dataset.patientId;
                 if (draggedId) {
-                    this.stateManager.setState({ dragState: { ...this.stateManager.state.dragState, draggedPatientId: draggedId } }, false);
+                    const itemType = draggableItem.classList.contains('patient-item') ? 'queue' :
+                                   draggableItem.dataset.itemType;
+                    this.stateManager.setState({
+                        dragState: {
+                            ...this.stateManager.state.dragState,
+                            draggedItemId: draggedId,
+                            itemType: itemType
+                        }
+                    }, false);
                 }
             }
 
             handleDrop(e) {
                 e.preventDefault();
                 const gapEl = e.target.closest('.timeline-gap');
-                const { draggedPatientId } = this.stateManager.state.dragState;
-                const { appointments, patientQueue, settings } = this.stateManager.state;
-                const patientData = patientQueue.find(p => p.id === draggedPatientId) || appointments.find(a => a.id === draggedPatientId);
+                const { draggedItemId, itemType } = this.stateManager.state.dragState;
 
-                if (gapEl && patientData) {
+                if (!gapEl || !draggedItemId) {
+                    this.stateManager.setState({ dragState: { ...this.stateManager.state.dragState, draggedItemId: null, itemType: null } }, false);
+                    return;
+                }
+
+                const { appointments, patientQueue, settings } = this.stateManager.state;
+                let draggedItem = null;
+
+                if (itemType === 'queue') {
+                    draggedItem = patientQueue.find(p => p.id === draggedItemId);
+                } else if (itemType === 'appointment') {
+                    draggedItem = appointments.find(a => a.id === draggedItemId);
+                } else {
+                    draggedItem = settings.breaks.find(b => b.id === draggedItemId) || settings.otherTasks.find(t => t.id === draggedItemId);
+                }
+
+                if (draggedItem) {
                     const gap = { start: parseInt(gapEl.dataset.start), duration: parseInt(gapEl.dataset.duration) };
-                    if (gap.duration >= patientData.duration + settings.transitionTime) {
-                        const newStart = TimeUtils.minutesTo24hTime(gap.start);
-                        const isExistingAppointment = appointments.some(a => a.id === draggedPatientId);
-                        
-                        let newAppointments;
-                        if (isExistingAppointment) {
-                            newAppointments = appointments.map(a => a.id === draggedPatientId ? { ...a, start: newStart } : a);
-                        } else {
-                            newAppointments = [...appointments, { ...patientData, id:`appt-${Date.now()}`, start: newStart, completed: false }];
+                    const itemDuration = (itemType === 'break' || itemType === 'task' || itemType === 'billable' || itemType === 'non-billable')
+                        ? TimeUtils.timeStringToMinutes(draggedItem.end) - TimeUtils.timeStringToMinutes(draggedItem.start)
+                        : draggedItem.duration;
+
+                    const transition = (itemType === 'queue' || itemType === 'appointment') ? settings.transitionTime : 0;
+
+                    if (gap.duration >= itemDuration + transition) {
+                        const newStartMins = gap.start;
+                        const newStart = TimeUtils.minutesTo24hTime(newStartMins);
+                        const newEnd = TimeUtils.minutesTo24hTime(newStartMins + itemDuration);
+
+                        const movedItem = { ...draggedItem, start: newStart };
+                        if (itemType === 'break' || itemType === 'task' || itemType === 'billable' || itemType === 'non-billable') {
+                            movedItem.end = newEnd;
                         }
-                        
-                        const newQueue = patientQueue.filter(p => p.id !== draggedPatientId);
-                        
-                        this.app.updateStateAndSchedule({
-                            appointments: newAppointments.sort((a,b) => TimeUtils.timeStringToMinutes(a.start) - TimeUtils.timeStringToMinutes(b.start)),
-                            patientQueue: newQueue
-                        });
+
+                        const conflict = ConflictDetector.checkForConflicts(movedItem, this.stateManager.state, draggedItemId);
+                        if (conflict.hasConflict) {
+                            NotificationSystem.show(`Move conflicts with ${conflict.conflictItem.label || conflict.conflictItem.name}.`, 'error');
+                        } else {
+                            let newAppointments = [...appointments];
+                            let newQueue = [...patientQueue];
+                            let newSettings = { ...settings };
+
+                            if (itemType === 'queue') {
+                                newAppointments.push({ ...draggedItem, id: `appt-${Date.now()}`, start: newStart, completed: false });
+                                newQueue = newQueue.filter(p => p.id !== draggedItemId);
+                            } else if (itemType === 'appointment') {
+                                newAppointments = newAppointments.map(a => a.id === draggedItemId ? { ...a, start: newStart } : a);
+                            } else if (itemType === 'break' || itemType === 'billable' || itemType === 'non-billable') {
+                                const listName = (itemType === 'break') ? 'breaks' : 'otherTasks';
+                                const updatedList = newSettings[listName].map(item =>
+                                    item.id === draggedItemId ? { ...item, start: newStart, end: newEnd } : item
+                                );
+                                newSettings[listName] = updatedList;
+                            }
+
+                            this.app.updateStateAndSchedule({
+                                appointments: newAppointments.sort((a, b) => TimeUtils.timeStringToMinutes(a.start) - TimeUtils.timeStringToMinutes(b.start)),
+                                patientQueue: newQueue,
+                                settings: newSettings
+                            });
+                        }
                     } else {
-                        NotificationSystem.show(`Session (${patientData.duration}m) does not fit in gap (${gap.duration}m).`, 'error');
+                        NotificationSystem.show(`Item (${itemDuration}m) does not fit in gap (${gap.duration}m).`, 'error');
                     }
                 }
-                this.stateManager.setState({ dragState: { ...this.stateManager.state.dragState, draggedPatientId: null } }, false);
+
+                this.stateManager.setState({ dragState: { ...this.stateManager.state.dragState, draggedItemId: null, itemType: null } }, false);
             }
             
             autoSchedule() {
@@ -800,7 +868,7 @@
                 }
 
                 const updatedAppointment = { ...editingAppointment };
-                delete updatedAppointment.end; // Remove temporary 'end' property
+                delete updatedAppointment.end;
 
                 const conflict = ConflictDetector.checkForConflicts(updatedAppointment, this.stateManager.state, editingAppointment.id);
 
@@ -997,22 +1065,12 @@
                 `;
             }
             update(state) {
-                const openDetails = {};
-                this.root.querySelectorAll('details').forEach(el => {
-                    if (el.id) openDetails[el.id] = el.open;
-                });
-
                 this._renderHeader();
                 this._renderModals(state.modals);
                 this._renderPatientQueue(state.patientQueue);
                 this._renderSettingsPanel(state.settings, state.ui);
                 this._renderDaySummary(state.schedule, state.appointments, state.patientQueue, state.settings, state.productivityCalculator);
                 this._renderScheduleTimeline(state.schedule, state.settings);
-
-                for (const id in openDetails) {
-                    const detailEl = this.root.querySelector(`#${id}`);
-                    if (detailEl) detailEl.open = openDetails[id];
-                }
             }
 
             _renderHeader() {
@@ -1210,23 +1268,53 @@
             _renderDaySummary(schedule, appointments, patientQueue, settings, productivityCalculator) {
                 const container = document.getElementById('day-summary-container');
                 if (!schedule) { container.innerHTML = ''; return; }
+
                 const patientsSeenCount = appointments.filter(a => a.completed).length;
-                container.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700"><h2 class="text-3xl font-bold text-gray-200 mb-4">Day Summary</h2><div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center"><div><div class="text-3xl sm:text-4xl font-bold ${schedule.meetsTarget ? 'text-green-400' : 'text-gray-300'}">${schedule.projectedClockOutMins > 0 ? TimeUtils.minutesToTime(schedule.projectedClockOutMins) : "--:--"}</div><div class="text-base text-gray-400">Target Clock-Out</div></div><div><div class="text-3xl sm:text-4xl font-bold text-yellow-400">${Math.floor(schedule.totalBillableTime/60)}h ${schedule.totalBillableTime % 60}m</div><div class="text-base text-gray-400">Total Billable</div></div><div><div class="text-3xl sm:text-4xl font-bold text-gray-300">${patientsSeenCount}</div><div class="text-base text-gray-400">Patients Seen</div></div><div><div class="text-3xl sm:text-4xl font-bold text-gray-300">${patientQueue.length}</div><div class="text-base text-gray-400">Unscheduled</div></div></div><div class="mt-4 p-3 bg-gray-900/50 border border-gray-700 rounded-lg flex items-start gap-3"><span class="text-yellow-400 mt-1 flex-shrink-0">${getIcon('BrainCircuit', 20)}</span><div><h4 class="font-semibold text-lg text-yellow-400">Actionable Insights</h4>${schedule.suggestions.map(s => `<p class="text-base text-gray-300">${s.replace(/<b>/g, '<b class="text-yellow-300">')}</p>`).join('')}</div></div>${schedule.totalBillableTime > 0 ? this._renderProductivityCalculator(schedule, settings, productivityCalculator) : ''}</div>`;
+                const clockOutIsSet = productivityCalculator.endTime !== '';
+                const productivityDisplay = clockOutIsSet && schedule.productivity > 0 ? `${schedule.productivity}%` : '--.-- %';
+                const productivityColor = schedule.meetsTarget ? 'text-green-400' : 'text-yellow-400';
+
+                container.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
+                    <h2 class="text-3xl font-bold text-gray-200 mb-4">Day Summary</h2>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                        <div>
+                            <div class="text-3xl sm:text-4xl font-bold ${schedule.meetsTarget ? 'text-green-400' : 'text-gray-300'}">${schedule.projectedClockOutMins > 0 ? TimeUtils.minutesToTime(schedule.projectedClockOutMins) : "--:--"}</div>
+                            <div class="text-base text-gray-400">Target Clock-Out</div>
+                        </div>
+                        <div>
+                            <div class="text-3xl sm:text-4xl font-bold text-yellow-400">${Math.floor(schedule.totalBillableTime/60)}h ${schedule.totalBillableTime % 60}m</div>
+                            <div class="text-base text-gray-400">Total Billable</div>
+                        </div>
+                        <div>
+                            <div class="text-3xl sm:text-4xl font-bold ${productivityColor}">${productivityDisplay}</div>
+                            <div class="text-base text-gray-400">Productivity</div>
+                        </div>
+                        <div>
+                            <div class="text-3xl sm:text-4xl font-bold text-gray-300">${patientQueue.length}</div>
+                            <div class="text-base text-gray-400">Unscheduled</div>
+                        </div>
+                    </div>
+                    <div class="mt-4 p-3 bg-gray-900/50 border border-gray-700 rounded-lg flex items-start gap-3">
+                        <span class="text-yellow-400 mt-1 flex-shrink-0">${getIcon('BrainCircuit', 20)}</span>
+                        <div>
+                            <h4 class="font-semibold text-lg text-yellow-400">Actionable Insights</h4>
+                            ${schedule.suggestions.map(s => `<p class="text-base text-gray-300">${s.replace(/<b>/g, '<b class="text-yellow-300">')}</p>`).join('')}
+                        </div>
+                    </div>
+                    ${this._renderProductivityCalculator(schedule, settings, productivityCalculator)}
+                </div>`;
             }
 
-            _renderProductivityCalculator(schedule, settings, { extraMinutes, endTime }) {
-                const dayStartMins = TimeUtils.timeStringToMinutes(settings.workDay.startTime);
-                const { totalBillableTime } = schedule;
-                const whatIfEndTimeMins = TimeUtils.timeStringToMinutes(endTime);
-
-                const whatIfTotalMinutes = whatIfEndTimeMins - dayStartMins;
-                const productivityAtNewTime = whatIfTotalMinutes > 0 ? ((totalBillableTime / whatIfTotalMinutes) * 100).toFixed(1) : "0.0";
-
-                const addedMinutes = parseInt(extraMinutes) || 0;
-                const newTotalBillableTime = totalBillableTime + addedMinutes;
-                const productivityWithExtraMinutes = whatIfTotalMinutes > 0 ? ((newTotalBillableTime / whatIfTotalMinutes) * 100).toFixed(1) : "0.0";
-
-                return `<details id="details-productivity" class="mt-4 bg-gray-900/50 rounded-lg p-3 border border-gray-700"><summary class="font-semibold text-lg text-gray-300 cursor-pointer flex items-center gap-2">${getIcon('TrendingUp')} Productivity Calculator</summary><div class="mt-4 space-y-4 pt-4 border-t border-gray-700"><div class="space-y-2"><label class="block text-base font-medium text-gray-400">If I clock out at...</label>${this._renderCustomTimeInput(endTime, 'productivity.endTime')}<p class="text-base text-gray-300 mt-2">Your productivity would be: <strong class="text-xl text-yellow-400">${productivityAtNewTime}%</strong></p></div><hr class="border-gray-700"/><div class="space-y-2"><label class="block text-base font-medium text-gray-400">And I add an extra...</label><div class="flex items-center gap-2"><input type="number" id="extra-minutes-input" value="${extraMinutes}" class="w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" placeholder="e.g., 30" /><span class="text-base text-gray-500">billable mins</span></div><p class="text-base text-gray-300">Your new productivity would be: <strong class="text-xl text-yellow-400">${productivityWithExtraMinutes}%</strong> (at the time specified above)</p></div></div></details>`;
+            _renderProductivityCalculator(schedule, settings, { endTime }) {
+                return `<details id="details-productivity" class="mt-4 bg-gray-900/50 rounded-lg p-3 border border-gray-700">
+                    <summary class="font-semibold text-lg text-gray-300 cursor-pointer flex items-center gap-2">${getIcon('TrendingUp')} Productivity Calculator</summary>
+                    <div class="mt-4 space-y-4 pt-4 border-t border-gray-700">
+                        <div class="space-y-2">
+                            <label class="block text-base font-medium text-gray-400">Enter your Clock-Out Time to calculate productivity:</label>
+                            ${this._renderCustomTimeInput(endTime, 'productivity.endTime')}
+                        </div>
+                    </div>
+                </details>`;
             }
 
             _renderScheduleTimeline(schedule, settings) {
@@ -1301,6 +1389,7 @@
                         content = document.createElement('div');
                         content.className = `timeline-appointment-item relative group pt-1 px-2 pb-2 rounded-md cursor-pointer h-full w-full border ${this._getAppointmentColor(item.duration)} ${item.completed ? 'opacity-60' : ''}`;
                         content.dataset.id = item.id;
+                        content.dataset.itemType = 'appointment';
                         content.draggable = true;
 
                         content.innerHTML = `
@@ -1322,7 +1411,10 @@
                         wrapper.style.zIndex = '5';
 
                         content = document.createElement('div');
-                        content.className = 'p-2 rounded-md bg-gray-700/50 border-gray-600 text-gray-300 text-sm h-full w-full flex flex-col justify-center';
+                        content.className = 'p-2 rounded-md bg-gray-700/50 border-gray-600 text-gray-300 text-sm h-full w-full flex flex-col justify-center cursor-grab active:cursor-grabbing';
+                        content.draggable = true;
+                        content.dataset.id = item.id;
+                        content.dataset.itemType = item.type;
 
                         const itemHeader = document.createElement('div');
                         itemHeader.className = 'flex items-center gap-1';
@@ -1368,20 +1460,4 @@
 
             _getAppointmentColor(duration) {
                 if (duration <= Constants.APPOINTMENT_COLOR_THRESHOLDS.SHORT) return 'bg-yellow-500/20 border-yellow-400 text-yellow-200';
-                if (duration <= Constants.APPOINTMENT_COLOR_THRESHOLDS.MEDIUM) return 'bg-blue-500/20 border-blue-400 text-blue-200';
-                if (duration <= Constants.APPOINTMENT_COLOR_THRESHOLDS.LONG) return 'bg-green-500/20 border-green-400 text-green-200';
-                return 'bg-purple-500/20 border-purple-400 text-purple-200';
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            try { new TherapySchedulerApp(); }
-            catch (error) {
-                ErrorHandler.logError(error, 'AppInitialization');
-                document.body.innerHTML = `<div class="p-8 text-red-400"><h1>Application Error. Please refresh.</h1></div>`;
-            }
-        });
-
-    </script>
-</body>
-</html>
+                if (duration <= Constants.APPOINT...

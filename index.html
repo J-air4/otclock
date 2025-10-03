@@ -32,6 +32,7 @@
             z-index: 10;
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
+            overflow: hidden;
         }
 
         .timeline-appointment-item:hover {
@@ -141,7 +142,7 @@
             ACTIONS: {
                 SAVE: 'save', PRINT: 'print', CLEAR_DAY: 'clear-day', CONFIRM_CLEAR: 'confirm-clear', CANCEL_CLEAR: 'cancel-clear',
                 ADD_PATIENT: 'add-patient', ADD_PATIENT_PRESET: 'add-patient-preset', REMOVE_PATIENT: 'remove-patient',
-                AUTO_SCHEDULE: 'auto-schedule', REOPTIMIZE_SCHEDULE: 'reoptimize-schedule', EDIT_APPOINTMENT: 'edit-appointment', DELETE_APPOINTMENT: 'delete-appointment',
+                AUTO_SCHEDULE: 'auto-schedule', REOPTIMIZE: 'reoptimize', EDIT_APPOINTMENT: 'edit-appointment', DELETE_APPOINTMENT: 'delete-appointment',
                 TOGGLE_COMPLETE: 'toggle-complete', ADD_BREAK: 'add-break', DELETE_BREAK: 'delete-break', ADD_TASK: 'add-task',
                 DELETE_TASK: 'delete-task', CANCEL_EDIT: 'cancel-edit', SAVE_EDIT: 'save-edit',
                 ADJUST_TIME: 'adjust-time'
@@ -396,13 +397,11 @@
                     });
 
                     const gaps = this.calculateGaps(allScheduledItems, dayStartMins, state.settings);
-                    const metrics = this.calculateProductivityMetrics(state, allScheduledItems, lastEnd);
-                    const suggestions = this.generateSuggestions(state, gaps, lastEnd, metrics);
+                    const metrics = this.calculateProductivityMetrics(state, state.productivityCalculator.endTime);
 
                     return {
                         timelineItems: [...allScheduledItems, ...gaps.map(g => ({...g, startMins: g.start, endMins: g.end }))].sort((a,b) => a.startMins - b.startMins),
                         ...metrics,
-                        suggestions,
                         lastEndMins: lastEnd,
                         gaps
                     };
@@ -426,57 +425,37 @@
                 return gaps;
             }
 
-            static calculateProductivityMetrics(state, allScheduledItems, lastEnd) {
-                const totalTreatmentTime = state.appointments.reduce((sum, apt) => sum + apt.duration, 0);
-                const billableTaskTime = state.settings.otherTasks.filter(t => t.type === 'billable').reduce((sum, t) => sum + (TimeUtils.timeStringToMinutes(t.end) - TimeUtils.timeStringToMinutes(t.start)), 0);
+            static calculateProductivityMetrics(state, clockOutTime) {
+                const totalBillableTime = state.appointments.reduce((sum, apt) => sum + apt.duration, 0) +
+                                        state.settings.otherTasks
+                                            .filter(t => t.type === 'billable')
+                                            .reduce((sum, t) => sum + (TimeUtils.timeStringToMinutes(t.end) - TimeUtils.timeStringToMinutes(t.start)), 0);
 
-                const totalBillableTime = totalTreatmentTime + billableTaskTime;
+                const clockInMinutes = TimeUtils.timeStringToMinutes(state.settings.workDay.startTime);
 
-                let projectedClockOutMins = 0, productivity = 0;
-                const dayStartMins = TimeUtils.timeStringToMinutes(state.settings.workDay.startTime);
+                let productivity = 0;
+                if (clockOutTime && clockOutTime !== '') {
+                    const clockOutMinutes = TimeUtils.timeStringToMinutes(clockOutTime);
+                    const minutesClockedIn = clockOutMinutes - clockInMinutes;
 
-                if (state.settings.productivityTarget > 0 && totalBillableTime > 0) {
-                    const requiredTotalWorkTime = (totalBillableTime / (state.settings.productivityTarget / 100));
-                    projectedClockOutMins = dayStartMins + requiredTotalWorkTime;
-
-                    const totalMinutesOnJob = lastEnd - dayStartMins;
-                    if (totalMinutesOnJob > 0) {
-                        productivity = ((totalBillableTime / totalMinutesOnJob) * 100).toFixed(1);
+                    if (minutesClockedIn > 0 && totalBillableTime <= minutesClockedIn) {
+                        productivity = (totalBillableTime * 100) / minutesClockedIn;
                     }
                 }
+
+                // Calculate projected clock-out time to meet target
+                let projectedClockOutMins = 0;
+                if (state.settings.productivityTarget > 0 && totalBillableTime > 0) {
+                    const requiredMinutesClockedIn = (totalBillableTime * 100) / state.settings.productivityTarget;
+                    projectedClockOutMins = clockInMinutes + requiredMinutesClockedIn;
+                }
+
                 return {
                     totalBillableTime,
                     projectedClockOutMins,
-                    productivity,
-                    meetsTarget: projectedClockOutMins > 0 && lastEnd >= projectedClockOutMins
+                    productivity: productivity > 0 ? productivity.toFixed(1) : "0.0",
+                    meetsTarget: productivity >= state.settings.productivityTarget
                 };
-            }
-
-            static generateSuggestions(state, gaps, lastEnd, metrics) {
-                const suggestions = [];
-                if (metrics.projectedClockOutMins > 0) {
-                    suggestions.push(`To meet your <b>${state.settings.productivityTarget}% target</b>, you can clock out around <b>${TimeUtils.minutesToTime(metrics.projectedClockOutMins)}</b>.`);
-
-                    if (lastEnd > metrics.projectedClockOutMins) {
-                        suggestions.push(`Note: Your last task ends at <b>${TimeUtils.minutesToTime(lastEnd)}</b>, but you've already met your productivity goal for the time worked.`);
-                    }
-
-                } else {
-                    suggestions.push(`Add a billable session to calculate your productivity and target clock-out time.`);
-                }
-
-                if (state.patientQueue.length > 0 && gaps.length > 0) {
-                    const smallestPatientDuration = Math.min(...state.patientQueue.map(p => p.duration));
-                    const suitableGap = gaps.find(g => g.duration >= smallestPatientDuration + state.settings.transitionTime);
-                    if (suitableGap) {
-                        suggestions.push(`You have a <b>${suitableGap.duration} min gap</b> at ${TimeUtils.minutesToTime(suitableGap.start)} large enough for a queued session.`);
-                    }
-                }
-
-                if (lastEnd > Constants.LATE_WORK_THRESHOLD_HOUR * Constants.TIME.MINUTES_IN_HOUR) {
-                    suggestions.push(`<b>Warning:</b> Your current schedule ends at <b>${TimeUtils.minutesToTime(lastEnd)}</b>.`);
-                }
-                return suggestions;
             }
         }
 
@@ -578,7 +557,7 @@
                     case Constants.ACTIONS.ADD_PATIENT_PRESET: this.addPatientToQueue(parseInt(btn.dataset.duration)); break;
                     case Constants.ACTIONS.REMOVE_PATIENT: this.removePatientFromQueue(btn.closest('[data-patient-id]').dataset.patientId); break;
                     case Constants.ACTIONS.AUTO_SCHEDULE: this.autoSchedule(); break;
-                    case Constants.ACTIONS.REOPTIMIZE_SCHEDULE: this.reoptimizeSchedule(); break;
+                    case Constants.ACTIONS.REOPTIMIZE: this.reOptimize(); break;
                     case Constants.ACTIONS.EDIT_APPOINTMENT: this.openEditModal(btn.closest('[data-id]').dataset.id); break;
                     case Constants.ACTIONS.TOGGLE_COMPLETE: this.toggleAppointmentComplete(btn.closest('[data-id]').dataset.id); break;
                     case Constants.ACTIONS.DELETE_APPOINTMENT: this.removeAppointment(btn.closest('[data-id]').dataset.id); break;
@@ -711,7 +690,7 @@
                 }
             }
 
-            reoptimizeSchedule() {
+            reOptimize() {
                 const { appointments, patientQueue } = this.stateManager.state;
                 if (appointments.length === 0) {
                     NotificationSystem.show("No sessions to re-optimize.", "info");
@@ -854,6 +833,7 @@
                 const list = this.stateManager.state.settings[listName] || [];
                 const updates = { settings: { ...this.stateManager.state.settings, [listName]: [...list, newItem] } };
                 this.app.updateStateAndSchedule(updates);
+                NotificationSystem.show(`${newItem.label} added.`, 'success');
             }
 
             removeListItem(listName, id) {
@@ -997,22 +977,12 @@
                 `;
             }
             update(state) {
-                const openDetails = {};
-                this.root.querySelectorAll('details').forEach(el => {
-                    if (el.id) openDetails[el.id] = el.open;
-                });
-
                 this._renderHeader();
                 this._renderModals(state.modals);
                 this._renderPatientQueue(state.patientQueue);
                 this._renderSettingsPanel(state.settings, state.ui);
                 this._renderDaySummary(state.schedule, state.appointments, state.patientQueue, state.settings, state.productivityCalculator);
                 this._renderScheduleTimeline(state.schedule, state.settings);
-
-                for (const id in openDetails) {
-                    const detailEl = this.root.querySelector(`#${id}`);
-                    if (detailEl) detailEl.open = openDetails[id];
-                }
             }
 
             _renderHeader() {
@@ -1102,7 +1072,7 @@
                         </div>
                         <div class="flex gap-2 mt-4">
                             <button data-action="${Constants.ACTIONS.AUTO_SCHEDULE}" class="w-full py-2 px-4 bg-gray-700 text-yellow-300 font-semibold rounded-lg hover:bg-gray-600 flex items-center justify-center gap-2">${getIcon('Zap')} Optimize</button>
-                            <button data-action="${Constants.ACTIONS.REOPTIMIZE_SCHEDULE}" class="w-full py-2 px-4 bg-blue-800/80 text-blue-200 rounded-lg hover:bg-blue-700/80 flex items-center justify-center gap-2">${getIcon('BrainCircuit')} Re-Optimize</button>
+                            <button data-action="${Constants.ACTIONS.REOPTIMIZE}" class="w-full py-2 px-4 bg-blue-800/80 text-blue-200 rounded-lg hover:bg-blue-700/80 flex items-center justify-center gap-2">${getIcon('BrainCircuit')} Re-Optimize</button>
                         </div>
                     </div>`;
             }
@@ -1210,24 +1180,39 @@
             _renderDaySummary(schedule, appointments, patientQueue, settings, productivityCalculator) {
                 const container = document.getElementById('day-summary-container');
                 if (!schedule) { container.innerHTML = ''; return; }
+
                 const patientsSeenCount = appointments.filter(a => a.completed).length;
-                container.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700"><h2 class="text-3xl font-bold text-gray-200 mb-4">Day Summary</h2><div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center"><div><div class="text-3xl sm:text-4xl font-bold ${schedule.meetsTarget ? 'text-green-400' : 'text-gray-300'}">${schedule.projectedClockOutMins > 0 ? TimeUtils.minutesToTime(schedule.projectedClockOutMins) : "--:--"}</div><div class="text-base text-gray-400">Target Clock-Out</div></div><div><div class="text-3xl sm:text-4xl font-bold text-yellow-400">${Math.floor(schedule.totalBillableTime/60)}h ${schedule.totalBillableTime % 60}m</div><div class="text-base text-gray-400">Total Billable</div></div><div><div class="text-3xl sm:text-4xl font-bold text-gray-300">${patientsSeenCount}</div><div class="text-base text-gray-400">Patients Seen</div></div><div><div class="text-3xl sm:text-4xl font-bold text-gray-300">${patientQueue.length}</div><div class="text-base text-gray-400">Unscheduled</div></div></div><div class="mt-4 p-3 bg-gray-900/50 border border-gray-700 rounded-lg flex items-start gap-3"><span class="text-yellow-400 mt-1 flex-shrink-0">${getIcon('BrainCircuit', 20)}</span><div><h4 class="font-semibold text-lg text-yellow-400">Actionable Insights</h4>${schedule.suggestions.map(s => `<p class="text-base text-gray-300">${s.replace(/<b>/g, '<b class="text-yellow-300">')}</p>`).join('')}</div></div>${schedule.totalBillableTime > 0 ? this._renderProductivityCalculator(schedule, settings, productivityCalculator) : ''}</div>`;
+                const clockOutIsSet = productivityCalculator.endTime !== '';
+                const productivityDisplay = clockOutIsSet && schedule.productivity > 0 ? `${schedule.productivity}%` : '--.-- %';
+                const productivityColor = schedule.meetsTarget ? 'text-green-400' : 'text-yellow-400';
+
+                container.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
+                    <h2 class="text-3xl font-bold text-gray-200 mb-4">Day Summary</h2>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                        <div>
+                            <div class="text-3xl sm:text-4xl font-bold ${schedule.meetsTarget ? 'text-green-400' : 'text-gray-300'}">${schedule.projectedClockOutMins > 0 ? TimeUtils.minutesToTime(schedule.projectedClockOutMins) : "--:--"}</div>
+                            <div class="text-base text-gray-400">Target Clock-Out</div>
+                        </div>
+                        <div>
+                            <div class="text-3xl sm:text-4xl font-bold text-yellow-400">${Math.floor(schedule.totalBillableTime/60)}h ${schedule.totalBillableTime % 60}m</div>
+                            <div class="text-base text-gray-400">Total Billable</div>
+                        </div>
+                        <div>
+                            <div class="text-3xl sm:text-4xl font-bold ${productivityColor}">${productivityDisplay}</div>
+                            <div class="text-base text-gray-400">Productivity</div>
+                        </div>
+                        <div>
+                            <div class="text-3xl sm:text-4xl font-bold text-gray-300">${patientQueue.length}</div>
+                            <div class="text-base text-gray-400">Unscheduled</div>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-base font-medium text-gray-400">Enter your Clock-Out Time to calculate productivity:</label>
+                        ${this._renderCustomTimeInput(productivityCalculator.endTime, 'productivity.endTime')}
+                    </div>
+                </div>`;
             }
 
-            _renderProductivityCalculator(schedule, settings, { extraMinutes, endTime }) {
-                const dayStartMins = TimeUtils.timeStringToMinutes(settings.workDay.startTime);
-                const { totalBillableTime } = schedule;
-                const whatIfEndTimeMins = TimeUtils.timeStringToMinutes(endTime);
-
-                const whatIfTotalMinutes = whatIfEndTimeMins - dayStartMins;
-                const productivityAtNewTime = whatIfTotalMinutes > 0 ? ((totalBillableTime / whatIfTotalMinutes) * 100).toFixed(1) : "0.0";
-
-                const addedMinutes = parseInt(extraMinutes) || 0;
-                const newTotalBillableTime = totalBillableTime + addedMinutes;
-                const productivityWithExtraMinutes = whatIfTotalMinutes > 0 ? ((newTotalBillableTime / whatIfTotalMinutes) * 100).toFixed(1) : "0.0";
-
-                return `<details id="details-productivity" class="mt-4 bg-gray-900/50 rounded-lg p-3 border border-gray-700"><summary class="font-semibold text-lg text-gray-300 cursor-pointer flex items-center gap-2">${getIcon('TrendingUp')} Productivity Calculator</summary><div class="mt-4 space-y-4 pt-4 border-t border-gray-700"><div class="space-y-2"><label class="block text-base font-medium text-gray-400">If I clock out at...</label>${this._renderCustomTimeInput(endTime, 'productivity.endTime')}<p class="text-base text-gray-300 mt-2">Your productivity would be: <strong class="text-xl text-yellow-400">${productivityAtNewTime}%</strong></p></div><hr class="border-gray-700"/><div class="space-y-2"><label class="block text-base font-medium text-gray-400">And I add an extra...</label><div class="flex items-center gap-2"><input type="number" id="extra-minutes-input" value="${extraMinutes}" class="w-full px-2 py-1 bg-gray-700 border-gray-600 text-gray-200 rounded-md" placeholder="e.g., 30" /><span class="text-base text-gray-500">billable mins</span></div><p class="text-base text-gray-300">Your new productivity would be: <strong class="text-xl text-yellow-400">${productivityWithExtraMinutes}%</strong> (at the time specified above)</p></div></div></details>`;
-            }
 
             _renderScheduleTimeline(schedule, settings) {
                 const container = document.getElementById('schedule-timeline-container');
@@ -1322,7 +1307,9 @@
                         wrapper.style.zIndex = '5';
 
                         content = document.createElement('div');
-                        content.className = 'p-2 rounded-md bg-gray-700/50 border-gray-600 text-gray-300 text-sm h-full w-full flex flex-col justify-center';
+                        content.className = 'p-2 rounded-md bg-gray-700/50 border-gray-600 text-gray-300 text-sm h-full w-full flex flex-col justify-center cursor-grab active:cursor-grabbing';
+                        content.draggable = true;
+                        content.dataset.id = item.id;
 
                         const itemHeader = document.createElement('div');
                         itemHeader.className = 'flex items-center gap-1';

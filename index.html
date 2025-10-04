@@ -235,35 +235,56 @@
             }
         }
 
-        // === CONFLICT DETECTION LOGIC ===
+        // === CONFLICT DETECTION LOGIC (FIXED) ===
         class ConflictDetector {
             static checkForConflicts(newItem, state, excludeId = null) {
                 const { appointments, settings } = state;
                 const { breaks, otherTasks, transitionTime } = settings;
 
                 const newStartMins = TimeUtils.timeStringToMinutes(newItem.start);
-                const isNewItemAppointment = newItem.hasOwnProperty('duration');
-                const newEndMins = isNewItemAppointment
-                    ? newStartMins + newItem.duration + transitionTime
-                    : TimeUtils.timeStringToMinutes(newItem.end);
+
+                let newEndMins;
+                if (newItem.duration !== undefined) {
+                    newEndMins = newStartMins + newItem.duration + transitionTime;
+                } else if (newItem.end) {
+                    newEndMins = TimeUtils.timeStringToMinutes(newItem.end);
+                } else {
+                    return { hasConflict: false };
+                }
 
                 const allItems = [
-                    ...appointments.map(a => ({ ...a, itemType: 'appointment', label: a.name })),
-                    ...breaks.map(b => ({ ...b, itemType: 'break' })),
-                    ...otherTasks.map(t => ({ ...t, itemType: 'task' }))
+                    ...appointments.map(a => ({
+                        ...a,
+                        itemType: 'appointment',
+                        label: a.name,
+                        startMins: TimeUtils.timeStringToMinutes(a.start),
+                        endMins: TimeUtils.timeStringToMinutes(a.start) + a.duration + transitionTime
+                    })),
+                    ...breaks.map(b => ({
+                        ...b,
+                        itemType: 'break',
+                        startMins: TimeUtils.timeStringToMinutes(b.start),
+                        endMins: TimeUtils.timeStringToMinutes(b.end)
+                    })),
+                    ...otherTasks.map(t => ({
+                        ...t,
+                        itemType: 'task',
+                        startMins: TimeUtils.timeStringToMinutes(t.start),
+                        endMins: TimeUtils.timeStringToMinutes(t.end)
+                    }))
                 ];
 
                 for (const item of allItems) {
                     if (excludeId && item.id === excludeId) continue;
 
-                    if (isNewItemAppointment && item.itemType === 'appointment') {
+                    // Appointments can overlap with other appointments, but not with breaks/tasks.
+                    // Breaks/tasks cannot overlap with anything.
+                    if (newItem.duration !== undefined && item.itemType === 'appointment') {
                         continue;
                     }
 
-                    const itemStartMins = TimeUtils.timeStringToMinutes(item.start);
-                    const itemEndMins = item.duration
-                        ? itemStartMins + item.duration + (item.itemType === 'appointment' ? transitionTime : 0)
-                        : TimeUtils.timeStringToMinutes(item.end);
+                    const itemStartMins = item.startMins;
+                    const itemEndMins = item.endMins;
 
                     if (newStartMins < itemEndMins && itemStartMins < newEndMins) {
                         return { hasConflict: true, conflictItem: item };
@@ -440,24 +461,22 @@
                 const clockInMinutes = TimeUtils.timeStringToMinutes(state.settings.workDay.startTime);
 
                 const totalBreakTime = state.settings.breaks.reduce((sum, br) => sum + (TimeUtils.timeStringToMinutes(br.end) - TimeUtils.timeStringToMinutes(br.start)), 0);
-                const nonBillableTaskTime = state.settings.otherTasks.filter(t => t.type === 'non-billable').reduce((sum, t) => sum + (TimeUtils.timeStringToMinutes(t.end) - TimeUtils.timeStringToMinutes(t.start)), 0);
-                const timeUnavailable = totalBreakTime + nonBillableTaskTime;
 
                 let productivity = 0;
                 if (clockOutTime && clockOutTime !== '') {
                     const clockOutMinutes = TimeUtils.timeStringToMinutes(clockOutTime);
                     const dayLength = clockOutMinutes - clockInMinutes;
-                    const workTime = dayLength - timeUnavailable;
+                    const productiveTime = dayLength - totalBreakTime;
 
-                    if (workTime > 0) {
-                        productivity = ((totalBillableTime * 100) / workTime);
+                    if (productiveTime > 0) {
+                        productivity = ((totalBillableTime * 100) / productiveTime);
                     }
                 }
 
                 let projectedClockOutMins = 0;
                 if (state.settings.productivityTarget > 0 && totalBillableTime > 0) {
-                    const requiredTotalWorkTime = (totalBillableTime * 100) / state.settings.productivityTarget;
-                    projectedClockOutMins = clockInMinutes + requiredTotalWorkTime + timeUnavailable;
+                    const requiredProductiveTime = (totalBillableTime * 100) / state.settings.productivityTarget;
+                    projectedClockOutMins = clockInMinutes + requiredProductiveTime + totalBreakTime;
                 }
 
                 return {
@@ -795,7 +814,11 @@
                     }
                 });
 
-                this.stateManager.setState({ appointments: [], patientQueue: newPatientQueue }, false);
+                this.app.updateStateAndSchedule({
+                    appointments: [],
+                    patientQueue: newPatientQueue
+                });
+
                 this.autoSchedule();
                 NotificationSystem.show("Schedule has been re-optimized.", "success");
             }
@@ -991,14 +1014,14 @@
 
                             if (endMins < startMins) {
                                 NotificationSystem.show('End time cannot be before start time.', 'error');
-                                this.app.updateStateAndSchedule({});
+                                this.app.updateStateAndSchedule({ settings: { ...this.stateManager.state.settings } });
                                 return;
                             }
 
                             const conflict = ConflictDetector.checkForConflicts(tempItem, this.stateManager.state, itemId);
                             if(conflict.hasConflict) {
                                 NotificationSystem.show(`Change conflicts with ${conflict.conflictItem.label || conflict.conflictItem.name}.`, 'error');
-                                this.app.updateStateAndSchedule({});
+                                this.app.updateStateAndSchedule({ settings: { ...this.stateManager.state.settings } });
                                 return;
                             }
 
